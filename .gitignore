@@ -146,3 +146,6 @@ dmypy.json
 .history/
 # Built Visual Studio Code Extensions
 *.vsix
+
+# poetry.lock https://stackoverflow.com/a/61076546
+poetry.lock
