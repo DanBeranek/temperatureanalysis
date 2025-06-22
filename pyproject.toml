@@ -14,8 +14,9 @@ classifiers = ["Development Status :: 1 - Planning"]
 Changelog = "https://github.com/statisticsnorway/temperatureanalysis/releases"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.11,<4.0"
 click = ">=8.0.1"
+numpy = "^2.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pygments = ">=2.10.0"
