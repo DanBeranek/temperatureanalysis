@@ -8,12 +8,21 @@ from src.temperatureanalysis.utils import kelvin_to_celsius
 class Material(ABC):
     """Abstract base class for materials used in temperature analysis."""
 
-    def __init__(self, initial_density: float):
+    def __init__(
+        self,
+        name:str,
+        color: str,
+        initial_density: float
+    ):
         """Initialize the material with an initial density.
 
         Args:
-            initial_density (float): Initial density of the material in kg/m³.
+            name: The name of the material.
+            color: The color of the material, used for visualization.
+            initial_density: Initial density of the material in kg/m³.
         """
+        self.name = name
+        self.color = color
         self.initial_density = initial_density
 
     @abstractmethod
@@ -82,10 +91,16 @@ class Concrete(Material):
         initial_density: float = 2300.0,
         initial_moisture_content: float = 0.0,
         boundary: ThermalConductivityBoundary = ThermalConductivityBoundary.LOWER,
+        name: str = "Concrete",
+        color: str = "gray"
     ):
         self.boundary = boundary
         self.u = initial_moisture_content
-        super().__init__(initial_density)
+        super().__init__(
+            name=name,
+            color=color,
+            initial_density=initial_density
+        )
 
     def thermal_conductivity(self, temperature_K: float) -> float:
         """
@@ -164,13 +179,23 @@ class Steel(Material):
     """
     Steel material for temperature analysis.
     """
-    def __init__(self, initial_density: float = 7850.0):
+    def __init__(
+        self,
+        name: str = "Steel",
+        color: str = "black",
+        initial_density: float = 7850.0):
         """Initialize the steel material with an initial density.
 
         Args:
-            initial_density (float): Initial density of steel in kg/m³.
+            name: The name of the material.
+            color: The color of the material, used for visualization.
+            initial_density: Initial density of steel in kg/m³.
         """
-        super().__init__(initial_density)
+        super().__init__(
+            name=name,
+            color=color,
+            initial_density=initial_density
+        )
 
     def thermal_conductivity(self, temperature_K: float) -> float:
         """Calculate the thermal conductivity of steel at a given temperature in Kelvin.
