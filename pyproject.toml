@@ -17,6 +17,8 @@ Changelog = "https://github.com/statisticsnorway/temperatureanalysis/releases"
 python = ">=3.11,<4.0"
 click = ">=8.0.1"
 numpy = "^2.3.1"
+matplotlib = "^3.10.3"
+scipy = "^1.16.0"
 
 [tool.poetry.group.dev.dependencies]
 pygments = ">=2.10.0"
