@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+import temperatureanalysis.analysis.gauss as gauss
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -62,23 +64,118 @@ class FiniteElement(ABC):
         """Calculate the area of the finite element."""
         pass
 
+    @property
+    def x(self) -> npt.NDArray[np.float64]:
+        """
+        Get the x-coordinates of the nodes of the element.
+
+        Returns:
+            Array of x-coordinates of the nodes.
+        """
+        return np.array([node.coords[0] for node in self.nodes], dtype=np.float64)
+
+    @property
+    def y(self) -> npt.NDArray[np.float64]:
+        """
+        Get the y-coordinates of the nodes of the element.
+
+        Returns:
+            Array of y-coordinates of the nodes.
+        """
+        return np.array([node.coords[1] for node in self.nodes], dtype=np.float64)
+
+    @property
+    def jacobian_determinant(self) -> float:
+        """
+        Calculate the determinant of the Jacobian matrix for the element.
+
+        Returns:
+            Determinant of the Jacobian matrix.
+        """
+        return np.linalg.det(self.jacobian_matrix)
+
     @abstractmethod
-    def b_matrix_jacobian(self) -> tuple[npt.NDArray[np.float64], float]:
-        """Calculate the B matrix and its Jacobian for the finite element."""
+    def get_integration_scheme(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """
+        Get the integration scheme for the finite element.
+
+        Returns:
+            Tuple of Gauss points and weights for numerical integration.
+        """
         pass
 
     @abstractmethod
+    def jacobian_matrix(self) -> npt.NDArray[np.float64]:
+        """Calculate the Jacobian matrix for the element.
+
+        Returns:
+            Jacobian matrix of the element.
+        """
+        pass
+
+    @abstractmethod
+    def b_matrix(self) -> npt.NDArray[np.float64]:
+        """Calculate the [B] matrix for the finite element."""
+        pass
+
     def get_conductivity_matrix(self) -> npt.NDArray[np.float64]:
-        """Calculate the conductivity matrix [K] for the finite element."""
-        pass
+        """
+        Calculate the conductivity matrix [K] for the finite element.
 
-    @abstractmethod
+        Returns:
+            Conductivity matrix for the element.
+        """
+        k_e = np.zeros((self.number_of_nodes, self.number_of_nodes), dtype=np.float64)
+
+        gauss_points, weights = self.get_integration_scheme()
+
+        temperature_at_nodes = np.array([node.current_temperature for node in self.nodes])
+
+        b_e = self.b_matrix
+        det_j = self.jacobian_determinant
+
+        for gp_i, w_i in zip(gauss_points, weights):
+            # Calculate the shape functions at the integration point
+            n_ei = self.shape_functions(iso_coords=gp_i)
+
+            # Calculate the temperature at the integration point
+            t_i = np.sum(n_ei * temperature_at_nodes)
+
+            # Calculate the thermal conductivity at the integration point
+            lambda_ci = self.material.thermal_conductivity(temperature_K=t_i)
+
+            k_e += b_e.T @ b_e * det_j * lambda_ci * w_i
+
+        return k_e
+
     def get_capacity_matrix(self) -> npt.NDArray[np.float64]:
-        """Calculate the capacity matrix [C] for the finite element."""
-        pass
+        """
+        Calculate the capacity matrix [C] of the finite element.
 
+        Returns:
+            Capacity matrix of the element.
+        """
+        c_e = np.zeros((self.number_of_nodes, self.number_of_nodes), dtype=np.float64)
 
-    # @abstractmethod
-    # def jacobian(self, xi: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    #     """Calculate the Jacobian matrix at given local coordinates."""
-    #     pass
+        gauss_points, weights = gauss.gauss_points_weights_triangle(self.n_integration_points)
+
+        det_j = self.jacobian_determinant
+
+        t_at_nodes = np.array([node.current_temperature for node in self.nodes])
+
+        for gp_i, w_i in zip(gauss_points, weights):
+            # Calculate the shape functions at the integration point
+            n_ei = self.shape_functions(iso_coords=gp_i)
+
+            # Calculate the temperature at the integration point
+            t_i = np.sum(n_ei * t_at_nodes)
+
+            # Calculate the density and specific heat capacity at the integration point
+            rho_ci = self.material.density(temperature_K=t_i)
+            c_pi = self.material.specific_heat_capacity(temperature_K=t_i)
+
+            # Calculate the contribution to the capacity matrix
+            c_e += det_j * n_ei.T @ n_ei * rho_ci * c_pi * w_i
+
+        return c_e
+
