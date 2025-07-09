@@ -604,6 +604,19 @@ sphinx = ">=6.0,<9.0"
 sphinx-basic-ng = ">=1.0.0.beta2"
 
 [[package]]
+name = "gmsh"
+version = "4.14.0"
+description = "Gmsh is a three-dimensional finite element mesh generator with built-in pre- and post-processing facilities."
+optional = false
+python-versions = "*"
+files = [
+    {file = "gmsh-4.14.0-py2.py3-none-macosx_10_15_x86_64.whl", hash = "sha256:e2530364aa132c1cbe352871103a281dbfcf21b7daa7c42e8a07f397ad7eb999"},
+    {file = "gmsh-4.14.0-py2.py3-none-macosx_12_0_arm64.whl", hash = "sha256:15e216632292d1daf40e979e4e55317a2b7406ba751ce3410ab9e0137aa0a6dc"},
+    {file = "gmsh-4.14.0-py2.py3-none-manylinux_2_24_x86_64.whl", hash = "sha256:aa39fe49bfea01cd753f5e30d679a5fbfa7315c9297e716393fc0fdc7977e609"},
+    {file = "gmsh-4.14.0-py2.py3-none-win_amd64.whl", hash = "sha256:d96a4ae8b36bf8d2a3fa93aa7fe60341e68facfcc257dd37936a05cce216fc52"},
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
@@ -1020,6 +1033,23 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
+
+[[package]]
+name = "mpmath"
+version = "1.3.0"
+description = "Python library for arbitrary-precision floating-point arithmetic"
+optional = false
+python-versions = "*"
+files = [
+    {file = "mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"},
+    {file = "mpmath-1.3.0.tar.gz", hash = "sha256:7a28eb2a9774d00c7bc92411c19a89209d5da7c4c9a9e227be8330a23a25b91f"},
+]
+
+[package.extras]
+develop = ["codecov", "pycodestyle", "pytest (>=4.6)", "pytest-cov", "wheel"]
+docs = ["sphinx"]
+gmpy = ["gmpy2 (>=2.1.0a4)"]
+tests = ["pytest (>=4.6)"]
 
 [[package]]
 name = "mypy"
@@ -2017,6 +2047,23 @@ typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
 
 [[package]]
+name = "sympy"
+version = "1.14.0"
+description = "Computer algebra system (CAS) in Python"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5"},
+    {file = "sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517"},
+]
+
+[package.dependencies]
+mpmath = ">=1.1.0,<1.4"
+
+[package.extras]
+dev = ["hypothesis (>=6.70.0)", "pytest (>=7.1.0)"]
+
+[[package]]
 name = "tokenize-rt"
 version = "6.2.0"
 description = "A wrapper around the stdlib `tokenize` which roundtrips."
@@ -2363,4 +2410,4 @@ tests-strict = ["pytest (==4.6.0)", "pytest (==6.2.5)", "pytest-cov (==3.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<4.0"
-content-hash = "0ce211f8bcd5e44008f1e5e4c6f281b129c57fb3fec44a7237c82743fe6aa6dc"
+content-hash = "21f0669ba757ade47edbf04991400030561efda793b12285635f209f987d9c33"
