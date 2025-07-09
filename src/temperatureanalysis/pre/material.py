@@ -3,7 +3,7 @@ from enum import StrEnum
 
 import numpy as np
 
-from src.temperatureanalysis.utils import kelvin_to_celsius
+from temperatureanalysis.utils import kelvin_to_celsius
 
 class Material(ABC):
     """Abstract base class for materials used in temperature analysis."""
