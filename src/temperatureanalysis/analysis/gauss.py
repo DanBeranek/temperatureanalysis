@@ -38,6 +38,8 @@ def gauss_points_weights_triangle(n_points: int) -> tuple[npt.NDArray[np.float64
     """
     Generate Gauss points and weights for a triangular Gaussian integration.
 
+    The weights are already multiplied by the area of the triangle (1/2 for a unit triangle).
+
     Args:
         n_points: Number of integration points.
 
@@ -48,13 +50,13 @@ def gauss_points_weights_triangle(n_points: int) -> tuple[npt.NDArray[np.float64
         A tuple containing the Gauss points and weights.
     """
     if n_points == 1:
-        return np.array([[1.0/3.0, 1.0/3.0, 1.0/3.0]]), np.array([1.0])
+        return np.array([[1.0/3.0, 1.0/3.0, 1.0/3.0]]), 0.5 * np.array([1.0])
     elif n_points == 3:
         return np.array([
             [2.0/3.0, 1.0/6.0, 1.0/6.0],
             [1.0/6.0, 2.0/3.0, 1.0/6.0],
             [1.0/6.0, 1.0/6.0, 2.0/3.0]]
-        ), np.array([1.0/3.0, 1.0/3.0, 1.0/3.0])
+        ), 0.5 * np.array([1.0/3.0, 1.0/3.0, 1.0/3.0])
     else:
         raise ValueError(f"Unsupported number of Gauss points: {n_points}. "
                          f"'n_points' must be 1 or 3.")
