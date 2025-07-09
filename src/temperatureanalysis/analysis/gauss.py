@@ -46,7 +46,7 @@ def gauss_points_weights_triangle(n_points: int) -> tuple[npt.NDArray[np.float64
         A tuple containing the Gauss points and weights.
     """
     if n_points == 1:
-        return np.array([[1.0/3.0, 1.0/3.0]]), np.array([1.0])
+        return np.array([[1.0/3.0, 1.0/3.0, 1.0/3.0]]), np.array([1.0])
     elif n_points == 3:
         return np.array([
             [2.0/3.0, 1.0/6.0, 1.0/6.0],
