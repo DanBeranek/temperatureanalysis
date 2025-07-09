@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from math import sqrt
+
 if TYPE_CHECKING:
     import numpy.typing as npt
 
@@ -56,3 +58,44 @@ def gauss_points_weights_triangle(n_points: int) -> tuple[npt.NDArray[np.float64
     else:
         raise ValueError(f"Unsupported number of Gauss points: {n_points}. "
                          f"'n_points' must be 1 or 3.")
+
+
+def gauss_points_weights_quadrilateral(n_points: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """
+    Generate Gauss points and weights for a quadrilateral Gaussian integration.
+
+    Args:
+        n_points: Number of integration points.
+
+    Raises:
+        ValueError: If `n_points` is not 1 or 4 or 9.
+
+    Returns:
+        A tuple containing the Gauss points and weights.
+    """
+    if n_points == 1:
+        return np.array([[0.0, 0.0]]), np.array([4.0])
+    elif n_points == 4:
+        return np.array([
+            [-1.0/sqrt(3.0), -1.0/sqrt(3.0)],
+            [+1.0/sqrt(3.0), -1.0/sqrt(3.0)],
+            [+1.0/sqrt(3.0), +1.0/sqrt(3.0)],
+            [-1.0/sqrt(3.0), +1.0/sqrt(3.0)],
+        ]
+        ), np.array([1.0, 1.0, 1.0, 1.0])
+    elif n_points == 9:
+        return np.array([
+            [-sqrt(3.0/5.0), -sqrt(3.0/5.0)],
+            [0.0, -sqrt(3.0/5.0)],
+            [+sqrt(3.0/5.0), -sqrt(3.0/5.0)],
+            [-sqrt(3.0/5.0), 0.0],
+            [0.0, 0.0],
+            [+sqrt(3.0/5.0), 0.0],
+            [-sqrt(3.0/5.0), +sqrt(3.0/5.0)],
+            [0.0, +sqrt(3.0/5.0)],
+            [+sqrt(3.0/5.0), +sqrt(3.0/5.0)],
+        ]
+        ), np.array([25/81, 40/81, 25/81, 40/81, 64/81, 40/81, 25/81, 40/81, 25/81])
+    else:
+        raise ValueError(f"Unsupported number of Gauss points: {n_points}. "
+                         f"'n_points' must be 1,4 or 9.")
