@@ -72,6 +72,16 @@ class LineElement(ABC):
         """
         return np.sqrt(np.sum(self.jacobian_matrix ** 2))
 
+    @property
+    def temperature_at_nodes(self) -> npt.NDArray[np.float64]:
+        """
+        Get the current temperature at each node of the edge element.
+
+        Returns:
+            Array of temperatures at the nodes.
+        """
+        return np.array([node.current_temperature for node in self.nodes], dtype=np.float64)
+
     @abstractmethod
     def shape_functions(self, iso_coord: float) -> npt.NDArray[np.float64]:
         """
@@ -115,29 +125,62 @@ class LineElement(ABC):
         Returns:
             Load vector for the element.
         """
+        alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
+        sigma = STEFAN_BOLTZMANN  # Stefan-Boltzmann constant
+
         f_e = np.zeros(self.number_of_nodes, dtype=np.float64)
 
         gauss_points, weights = self.get_integration_scheme()
 
-        temperature_at_nodes = np.array([node.current_temperature for node in self.nodes])
-
         det_j = self.jacobian_determinant
 
         t_f = temperature # fire temperature
-
-        alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
 
         for gp_i, w_i in zip(gauss_points, weights):
             # Calculate the shape functions at the integration point
             n_ei = self.shape_functions(iso_coord=gp_i)
 
             # Calculate the temperature at the integration point
-            t_i = np.sum(n_ei * temperature_at_nodes)
+            # t_i = np.sum(n_ei * temperature_at_nodes)
+            t_i = n_ei @ self.temperature_at_nodes
 
             # Calculate the contribution to the load vector
-            f_e += n_ei.T * (alpha * (t_i - t_f) + STEFAN_BOLTZMANN * (t_i ** 4 - t_f ** 4)) * w_i * det_j
+            f_e += n_ei.T * (alpha * (t_i - t_f) + sigma * (t_i ** 4 - t_f ** 4)) * w_i * det_j
 
         return f_e
+
+    def get_load_vector_tangent(self) -> npt.NDArray[np.float64]:
+        """
+        Compute the tangent matrix (df/dT) of this element’s nonlinear
+        boundary load, for use in a Newton–Raphson method.
+
+        Returns:
+            Tangent load vector for the element.
+        """
+        alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
+        sigma = STEFAN_BOLTZMANN  # Stefan-Boltzmann constant
+
+        df_dx_e = np.zeros((self.number_of_nodes, self.number_of_nodes), dtype=np.float64)
+
+        gauss_points, weights = self.get_integration_scheme()
+
+        det_j = self.jacobian_determinant
+
+        for gp_i, w_i in zip(gauss_points, weights):
+            # Calculate the shape functions at the integration point
+            n_ei = self.shape_functions(iso_coord=gp_i)
+
+            # Calculate the temperature at the integration point
+            t_i = n_ei @ self.temperature_at_nodes
+
+            outer_nn = np.outer(n_ei, n_ei)
+
+            mat_factor = alpha + 4 * sigma * t_i ** 3
+
+            # Calculate the contribution to the load vector
+            df_dx_e += outer_nn * mat_factor * w_i * det_j
+
+        return df_dx_e
 
 
 class Line2(LineElement):
@@ -166,7 +209,7 @@ class Line2(LineElement):
 
 
 if __name__ == "__main__":
-    # Example usage of Line2 element
+    # Example usage of a Line2 element
     node1 = Node(index=1, coords=[0.0, 0.0])
     node2 = Node(index=2, coords=[0.1, 0.0])
 
@@ -180,6 +223,7 @@ if __name__ == "__main__":
     print("Shape functions at iso_coord=1:", line_element.shape_functions(iso_coord=1))
     print("Jacobian matrix:", line_element.jacobian_matrix)
     print(f"Load vector for temperature {T}K:", line_element.get_load_vector(temperature=T))
+    print(f"Load vector tangent for temperature {T}K:", line_element.get_load_vector_tangent())
 
 
 
