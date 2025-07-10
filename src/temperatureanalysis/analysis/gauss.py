@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 def gauss_points_weights_edge(n_points: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
-    Generate Gauss points and weights for a 1D Gaussian integration.
+    Generate Gauss points and weights for a 1D Gaussian integration on the interval [-1, +1].
 
     Args:
         n_points: Number of integration points.
@@ -38,7 +38,9 @@ def gauss_points_weights_triangle(n_points: int) -> tuple[npt.NDArray[np.float64
     """
     Generate Gauss points and weights for a triangular Gaussian integration.
 
-    The weights are already multiplied by the area of the triangle (1/2 for a unit triangle).
+    Triangle is assumed to be a unit triangle with vertices at (0,0), (1,0), and (0,1).
+
+    The weights are multiplied by the area of the triangle (1/2 for a unit triangle).
 
     Args:
         n_points: Number of integration points.
@@ -66,11 +68,13 @@ def gauss_points_weights_quadrilateral(n_points: int) -> tuple[npt.NDArray[np.fl
     """
     Generate Gauss points and weights for a quadrilateral Gaussian integration.
 
+    Quadrilateral is assumed to be a square with vertices at (-1,-1), (1,-1), (1,1), and (-1,1).
+
     Args:
         n_points: Number of integration points.
 
     Raises:
-        ValueError: If `n_points` is not 1 or 4 or 9.
+        ValueError: If `n_points` is not 1 or 4 or 9.  # TODO: Is this correct? Should it be 1, 2, or 3?
 
     Returns:
         A tuple containing the Gauss points and weights.
