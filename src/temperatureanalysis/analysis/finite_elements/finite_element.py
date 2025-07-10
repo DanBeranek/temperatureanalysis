@@ -94,6 +94,16 @@ class FiniteElement(ABC):
         """
         return np.linalg.det(self.jacobian_matrix)
 
+    @property
+    def temperature_at_nodes(self) -> npt.NDArray[np.float64]:
+        """
+        Get the current temperature at each node of the edge element.
+
+        Returns:
+            Array of temperatures at the nodes.
+        """
+        return np.array([node.current_temperature for node in self.nodes], dtype=np.float64)
+
     @abstractmethod
     def get_integration_scheme(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
@@ -129,8 +139,6 @@ class FiniteElement(ABC):
 
         gauss_points, weights = self.get_integration_scheme()
 
-        temperature_at_nodes = np.array([node.current_temperature for node in self.nodes])
-
         b_e = self.b_matrix
         det_j = self.jacobian_determinant
 
@@ -139,7 +147,8 @@ class FiniteElement(ABC):
             n_ei = self.shape_functions(iso_coords=gp_i)
 
             # Calculate the temperature at the integration point
-            t_i = np.sum(n_ei * temperature_at_nodes)
+            t_i = n_ei @ self.temperature_at_nodes
+            # t_i = np.sum(n_ei * temperature_at_nodes)
 
             # Calculate the thermal conductivity at the integration point
             lambda_ci = self.material.thermal_conductivity(temperature_K=t_i)
@@ -161,14 +170,13 @@ class FiniteElement(ABC):
 
         det_j = self.jacobian_determinant
 
-        t_at_nodes = np.array([node.current_temperature for node in self.nodes])
-
         for gp_i, w_i in zip(gauss_points, weights):
             # Calculate the shape functions at the integration point
             n_ei = self.shape_functions(iso_coords=gp_i)
 
             # Calculate the temperature at the integration point
-            t_i = np.sum(n_ei * t_at_nodes)
+            # t_i = np.sum(n_ei * t_at_nodes)
+            t_i = n_ei @ self.temperature_at_nodes
 
             # Calculate the density and specific heat capacity at the integration point
             rho_ci = self.material.density(temperature_K=t_i)
