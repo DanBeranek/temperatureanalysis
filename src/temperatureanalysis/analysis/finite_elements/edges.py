@@ -208,6 +208,30 @@ class Line2(LineElement):
         return b @ np.array([self.x, self.y]).T  # TODO: Check if this is correct for edges, as it might differ from area elements
 
 
+class Line3(LineElement):
+    """Second order line element with three nodes."""
+
+    def __init__(self, index: int, tag: int, nodes: list[Node]) -> None:
+        """
+        Initialize the second order line element.
+
+        Args:
+            index: Element index.
+            tag: Element tag.
+            nodes: List of nodes that form the element.
+        """
+        super().__init__(index=index, tag=tag, nodes=nodes, number_of_integration_points=3)
+
+    def shape_functions(self, iso_coord: float) -> npt.NDArray[np.float64]:
+        """Shape functions for a second order line element."""
+        raise NotImplementedError("Shape functions for Line3 are not implemented yet.")
+
+    @property
+    def jacobian_matrix(self) -> npt.NDArray[np.float64]:
+        """Jacobian for a linear line element."""
+        raise NotImplementedError("Jacobian for Line3 are not implemented yet.")
+
+
 if __name__ == "__main__":
     # Example usage of a Line2 element
     node1 = Node(index=1, coords=[0.0, 0.0])
