@@ -69,7 +69,7 @@ class ISO834FireCurve(FireCurve):
         Returns:
             Temperature in K at time t.
         """
-        return 273.15 + 20 + 345 * np.log(8 * time + 1)
+        return 273.15 + 20 + 345 * np.log10(8 * (time/60) + 1)
 
 
 class HCFireCurve(FireCurve):
