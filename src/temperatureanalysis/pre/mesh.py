@@ -52,6 +52,7 @@ class Mesh:
         """
         Initialize the Mesh class.
         """
+        nodes.sort(key=lambda node: node.uid)
         self.nodes = nodes
         self.elements = elements
         self.boundary_elements = boundary_elements
@@ -97,12 +98,12 @@ class Mesh:
 
                 # Get the correct element class and number of nodes per element
                 element_class, nodes_per_element = ELEMENT_TYPE_MAP[element_type]
-                node_connectivity_matrix = flat_node_tags.reshape(-1, nodes_per_element)
+                node_connectivity_matrix = flat_node_tags.reshape(-1, nodes_per_element) - 1 # Convert to 0-based index
 
                 # Instantiate elements
                 for node_tags_for_element, element_tag in zip(node_connectivity_matrix, element_tags):
                     # Get the nodes for this element
-                    element_nodes = [nodes_lookup[tag-1] for tag in node_tags_for_element]  # Convert to 0-based index
+                    element_nodes = [nodes_lookup[tag] for tag in node_tags_for_element]
 
                     # Convert the element tag to zero-based index
                     element_tag = element_tag - 1  # GMSH uses 1-based indexing, convert to 0-based
@@ -119,6 +120,13 @@ class Mesh:
 
         gmsh.finalize()
         return cls(nodes=nodes, elements=surface_elements, boundary_elements=boundary_elements)
+
+    @property
+    def max_nodes_per_element(self) -> int:
+        """Return the maximum number of nodes per element in the mesh."""
+        if not self.elements:
+            return 0
+        return max(len(element.nodes) for elements in self.elements.values() for element in elements)
 
     def add_node(self, node: Node) -> None:
         """Add a node to the mesh."""
@@ -186,7 +194,7 @@ class Mesh:
         for node in self.nodes:
             # Plot the nodes
             plt.plot(node.x, node.y, 'ko')
-            plt.text(node.x, node.y, str(node.id), fontsize=12, color='k', ha='left', va='bottom')
+            plt.text(node.x, node.y, str(node.uid), fontsize=12, color='k', ha='left', va='bottom')
 
         plt.grid(visible=True, which='major', axis='both', linestyle='-', color='gray', lw=0.5)
         plt.minorticks_on()
