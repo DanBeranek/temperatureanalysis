@@ -24,10 +24,13 @@ class Node:
             coords: Coordinates of the node in the global system [X, Y].
         """
         self.coords = np.array(coords, dtype=np.float64)
-        self.id = index
+        self.uid = index
         self.global_dofs: npt.NDArray[np.int64] = np.empty(0, dtype=np.int64)
-        self.initial_temperature: float | None = 273.15 + 20.0 # TODO: Should the temperature be an argument?
         self.current_temperature: float | None = 273.15 + 20.0
+
+    def __repr__(self) -> str:
+        """String representation of the node."""
+        return f"{self.__class__.__name__}(id={self.uid}, coords={self.coords})"
 
     @property
     def x(self) -> float:
