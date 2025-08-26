@@ -6,6 +6,7 @@ import numpy as np
 import scipy as sp
 
 from temperatureanalysis.analysis.finite_elements.finite_element import FiniteElement
+from temperatureanalysis.utils import assemble_subarray_at_indices
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -21,21 +22,14 @@ class Solver:
     def __init__(
         self,
         model: Model,
-        time_step: float = 1.0,
-        initial_time: float = 0.0
     ) -> None:
         """
         Initialize the solver with a model.
 
         Args:
             model: The model to be solved.
-            time_step: The time step in seconds (default is 1.0).
-            initial_time: The initial time in seconds (default is 0.0).
         """
         self.model = model
-        self.temperature_vector: npt.NDArray[npt.NDArray[float]] = None
-        self.time_step = time_step
-        self.current_time: initial_time
 
     def _assemble_global_matrix(
         self,
@@ -90,5 +84,110 @@ class Solver:
         self.model.c_global = self._assemble_global_matrix(
             get_local_matrix=lambda element: element.get_capacity_matrix()
         )
+
+    def assemble_load_vector(self, time: float) -> None:
+        self.model.q_global = np.zeros((self.model.number_of_equations,), dtype=np.float64)
+        self.model.dqdT_global = np.zeros((self.model.number_of_equations, self.model.number_of_equations), dtype=np.float64)
+        temperature = self.model.fire_curve.get_temperature(time=time)
+        for elements in self.model.mesh.boundary_elements.values():
+            for element in elements:
+                dofs = element.global_dofs
+                self.model.q_global[dofs] += element.get_load_vector(temperature=temperature)
+                assemble_subarray_at_indices(
+                    array=self.model.dqdT_global,
+                    subarray=element.get_load_vector_tangent(),
+                    indices=dofs
+                )
+
+
+    def solve(
+        self,
+        dt: float,
+        total_time: float,
+        initial_temperature: float = 20 + 273.15,
+        tolerance: float = 1e-2,
+        verbose: bool = False
+    ) -> None:
+        # Time step parameters
+        current_time = 0.0
+        step = 0
+
+        # Initialize the global temperature vector with the initial temperature
+        temp_old = np.full(
+            (self.model.number_of_equations,),
+            initial_temperature,
+            dtype=np.float64
+        )
+
+        self.model.t_global = temp_old.copy()
+
+        results = [temp_old.copy()]
+
+        # Main time loop
+        while current_time < total_time:
+            current_time += dt
+            step += 1
+
+            temp_new = temp_old.copy()  # Initialize the next temperature vector
+
+            # Assemble global matrices for this iteration
+            self.assemble_global_conductivity_matrix()
+            self.assemble_global_capacity_matrix()
+            self.assemble_load_vector(time=current_time)
+
+            K = self.model.k_global
+            C = self.model.c_global
+            F = self.model.q_global
+            dFdT = self.model.dqdT_global
+
+            dRdT = (C / dt) + K + dFdT  # Residual derivative w.r.t. temperature
+            R = (C.dot((temp_new - temp_old) / dt) + K.dot(temp_new) + F)
+            r_norm = np.linalg.norm(R, ord=np.inf)
+
+            # Newton-Raphson iteration
+            iteration = 0
+            while r_norm > tolerance and iteration < 100:
+                delta = np.linalg.solve(dRdT, -R)
+                temp_new += delta
+
+                # Update nonlinear terms
+                self.assemble_load_vector(time=current_time)
+
+                F = self.model.q_global
+                dFdT = self.model.dqdT_global
+
+                # Update residual and its derivative
+                dRdT = (C / dt) + K + dFdT  # Residual derivative w.r.t. temperature
+                R = (C.dot((temp_new - temp_old) / dt) + K.dot(temp_new) + F)
+                r_norm = np.linalg.norm(R, ord=np.inf)
+
+                iteration += 1
+
+                if iteration == 100:
+                    raise RuntimeError(f"Newton-Raphson did not converge after {iteration} iterations at time {current_time:.2f} s.")
+
+            # Save converged temperature
+            results.append(temp_new.copy())
+            temp_old = temp_new
+
+            self.model.t_global = temp_new.copy()
+
+            # assemble temperature to nodes
+            for i, node in enumerate(self.model.mesh.nodes):
+                node.current_temperature = temp_new[i]
+
+            progress = int((current_time / total_time) * 100)
+            print(f"Progress: {progress} % - Time: {current_time:.2f} s - Step: {step} - Residual Norm: {r_norm:.6f} - Iterations: {iteration}")
+            # print(f"Step: {step} | Finished {progress} %")
+            # vector = ' '.join(f"{x:.3f}" for x in F)
+            # print(f"F: [{vector}]")
+            # vector = ' '.join(f"{x:.3f}" for x in temp_new)
+            # print(f"T: [{vector}]")
+            # self.model.plot_temperature_distribution(time=current_time)
+        self.model.plot_temperature_distribution(time=current_time)
+
+
+
+
 
 
