@@ -14,9 +14,9 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 # TODO: Move these constants to a more appropriate location, such as a configuration file or a constants module.
-CONVECTIVE_COEFFICIENT = 9.0 # W m^(-2) K^(-1) Convective heat transfer coefficient
+CONVECTIVE_COEFFICIENT = 25.0 # W m^(-2) K^(-1) Convective heat transfer coefficient
 STEFAN_BOLTZMANN = 5.67e-8  # W m^(-2) K^(-4) Stefan-Boltzmann constant, used for radiation heat transfer
-
+EMISSIVITY = 0.7  # Emissivity of the concrete surface
 
 class LineElement(ABC):
     """Abstract base class for edge elements in finite element analysis."""
@@ -41,7 +41,7 @@ class LineElement(ABC):
         self.tag = tag
         self.nodes = nodes
         self.number_of_integration_points = number_of_integration_points
-        self.global_dofs: npt.NDArray[np.int64] = np.array([node.id for node in nodes], dtype=np.int64)
+        self.global_dofs: npt.NDArray[np.int64] = np.array([node.uid for node in nodes], dtype=np.int64)
 
     def __repr__(self) -> str:
         """String representation of the line element."""
@@ -127,6 +127,7 @@ class LineElement(ABC):
         """
         alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
         sigma = STEFAN_BOLTZMANN  # Stefan-Boltzmann constant
+        e = EMISSIVITY
 
         f_e = np.zeros(self.number_of_nodes, dtype=np.float64)
 
@@ -145,7 +146,7 @@ class LineElement(ABC):
             t_i = n_ei @ self.temperature_at_nodes
 
             # Calculate the contribution to the load vector
-            f_e += n_ei.T * (alpha * (t_i - t_f) + sigma * (t_i ** 4 - t_f ** 4)) * w_i * det_j
+            f_e += n_ei.T * (alpha * (t_i - t_f) + e * sigma * (t_i ** 4 - t_f ** 4)) * w_i * det_j
 
         return f_e
 
@@ -159,6 +160,7 @@ class LineElement(ABC):
         """
         alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
         sigma = STEFAN_BOLTZMANN  # Stefan-Boltzmann constant
+        e = EMISSIVITY  # Emissivity of the concrete surface
 
         df_dx_e = np.zeros((self.number_of_nodes, self.number_of_nodes), dtype=np.float64)
 
@@ -175,7 +177,7 @@ class LineElement(ABC):
 
             outer_nn = np.outer(n_ei, n_ei)
 
-            mat_factor = alpha + 4 * sigma * t_i ** 3
+            mat_factor = alpha + 4 * e * sigma * t_i ** 3
 
             # Calculate the contribution to the load vector
             df_dx_e += outer_nn * mat_factor * w_i * det_j
