@@ -13,6 +13,15 @@ if TYPE_CHECKING:
 
     from temperatureanalysis.analysis.model import Model
 
+# try:
+#     import pypardiso
+#     spsolve = pypardiso.spsolve
+#     print("Using pypardiso as sparse linear solver.")
+# except ImportError:
+#     spsolve = sp.sparse.linalg.spsolve
+#     print("Using scipy.sparse.linalg.spsolve as sparse linear solver.")
+
+spsolve = sp.sparse.linalg.spsolve
 
 class Solver:
     """
@@ -36,7 +45,7 @@ class Solver:
         get_local_matrix: Callable[[FiniteElement], npt.NDArray[np.float64]]
     ) -> sp.sparse.coo_matrix[np.float64]:
         """
-        Assemble a global matrix in COO form for the model using a provided function to get the element matrix.
+        Assemble a global matrix in CSR form for the model using a provided function to get the element matrix.
 
         Args:
             get_local_matrix:
@@ -65,7 +74,7 @@ class Solver:
         return sp.sparse.coo_matrix(
             (data, (row, col)),
             shape=(self.model.number_of_equations, self.model.number_of_equations)
-        )
+        ).tocsr()
 
 
     def assemble_global_conductivity_matrix(self) -> None:
@@ -86,19 +95,44 @@ class Solver:
         )
 
     def assemble_load_vector(self, time: float) -> None:
+        # q_global can be dense, because it's just length of number_of_equations
         self.model.q_global = np.zeros((self.model.number_of_equations,), dtype=np.float64)
-        self.model.dqdT_global = np.zeros((self.model.number_of_equations, self.model.number_of_equations), dtype=np.float64)
+
+        # dqdT_global have to be sparse, because it's number_of_equations x number_of_equations
+        row: npt.NDArray[np.int64] = np.empty(0, dtype=np.int64)
+        col: npt.NDArray[np.int64] = np.empty(0, dtype=np.int64)
+        data: npt.NDArray[np.float64] = np.empty(0, dtype=np.float64)
+
+        # self.model.dqdT_global = np.zeros((self.model.number_of_equations, self.model.number_of_equations), dtype=np.float64)
         temperature = self.model.fire_curve.get_temperature(time=time)
         for elements in self.model.mesh.boundary_elements.values():
             for element in elements:
                 dofs = element.global_dofs
-                self.model.q_global[dofs] += element.get_load_vector(temperature=temperature)
-                assemble_subarray_at_indices(
-                    array=self.model.dqdT_global,
-                    subarray=element.get_load_vector_tangent(),
-                    indices=dofs
-                )
+                n_dofs = len(dofs)
 
+                self.model.q_global[dofs] += element.get_load_vector(temperature=temperature)
+
+                # accumulate dqdT_el into global sparse triplets
+                # (COO tolerates duplicates; .tocsr() will sum them)
+                r = np.repeat(dofs, n_dofs)
+                c = np.tile(dofs, n_dofs)
+
+                row = np.hstack((row, r))
+                col = np.hstack((col, c))
+                data = np.hstack((data, element.get_load_vector_tangent().flatten()))
+
+                # assemble_subarray_at_indices(
+                #     array=self.model.dqdT_global,
+                #     subarray=element.get_load_vector_tangent(),
+                #     indices=dofs
+                # )
+
+        # finalize dqdT_global as sparse matrix
+        self.model.dqdT_global = sp.sparse.coo_matrix(
+            (data, (row, col)),
+            shape=(self.model.number_of_equations, self.model.number_of_equations),
+            dtype=np.float64
+        ).tocsr()
 
     def solve(
         self,
@@ -111,10 +145,14 @@ class Solver:
         # Time step parameters
         current_time = 0.0
         step = 0
+        inv_dt = 1.0 / dt
+
+        # number of equations
+        neq = self.model.number_of_equations
 
         # Initialize the global temperature vector with the initial temperature
         temp_old = np.full(
-            (self.model.number_of_equations,),
+            (neq,),
             initial_temperature,
             dtype=np.float64
         )
@@ -140,14 +178,24 @@ class Solver:
             F = self.model.q_global
             dFdT = self.model.dqdT_global
 
-            dRdT = (C / dt) + K + dFdT  # Residual derivative w.r.t. temperature
-            R = (C.dot((temp_new - temp_old) / dt) + K.dot(temp_new) + F)
+            dRdT = C * inv_dt + K + dFdT  # Residual derivative w.r.t. temperature
+
+            # Reuse C.dot(temp_old)/dt inside Newton (It does not change during NR iterations)
+            C_temp_old_over_dt = C.dot(temp_old) * inv_dt
+
+            # R = (C.dot((temp_new - temp_old) / dt) + K.dot(temp_new) + F)
+            R = C.dot(temp_new) * inv_dt
+            R -= C_temp_old_over_dt
+            R += K.dot(temp_new)
+            R += F
+
             r_norm = np.linalg.norm(R, ord=np.inf)
 
             # Newton-Raphson iteration
             iteration = 0
             while r_norm > tolerance and iteration < 100:
-                delta = np.linalg.solve(dRdT, -R)
+                # solve dRdT * delta = -R
+                delta = spsolve(dRdT, -R)
                 temp_new += delta
 
                 # Update nonlinear terms
@@ -157,10 +205,14 @@ class Solver:
                 dFdT = self.model.dqdT_global
 
                 # Update residual and its derivative
-                dRdT = (C / dt) + K + dFdT  # Residual derivative w.r.t. temperature
-                R = (C.dot((temp_new - temp_old) / dt) + K.dot(temp_new) + F)
-                r_norm = np.linalg.norm(R, ord=np.inf)
+                dRdT = C * inv_dt + K + dFdT  # Residual derivative w.r.t. temperature
 
+                R = C.dot(temp_new) * inv_dt
+                R -= C_temp_old_over_dt
+                R += K.dot(temp_new)
+                R += F
+
+                r_norm = np.linalg.norm(R, ord=np.inf)
                 iteration += 1
 
                 if iteration == 100:
@@ -184,7 +236,7 @@ class Solver:
             # vector = ' '.join(f"{x:.3f}" for x in temp_new)
             # print(f"T: [{vector}]")
             # self.model.plot_temperature_distribution(time=current_time)
-        self.model.plot_temperature_distribution(time=current_time)
+        # self.model.plot_temperature_distribution(time=current_time)
 
 
 
