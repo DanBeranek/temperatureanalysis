@@ -44,6 +44,9 @@ class FiniteElement(ABC):
         self.n_integration_points = n_integration_points
         self.global_dofs: npt.NDArray[np.int64] = np.array([node.uid for node in nodes], dtype=np.int64)
 
+        self.x = np.array([node.coords[0] for node in nodes], dtype=np.float64)
+        self.y = np.array([node.coords[1] for node in nodes], dtype=np.float64)
+
     def __repr__(self) -> str:
         """String representation of the finite element."""
         return f"{self.__class__.__name__}(id={self.id}, tag='{self.tag}', material={self.material.name})"
@@ -63,26 +66,6 @@ class FiniteElement(ABC):
     def area(self) -> float:
         """Calculate the area of the finite element."""
         pass
-
-    @property
-    def x(self) -> npt.NDArray[np.float64]:
-        """
-        Get the x-coordinates of the nodes of the element.
-
-        Returns:
-            Array of x-coordinates of the nodes.
-        """
-        return np.array([node.coords[0] for node in self.nodes], dtype=np.float64)
-
-    @property
-    def y(self) -> npt.NDArray[np.float64]:
-        """
-        Get the y-coordinates of the nodes of the element.
-
-        Returns:
-            Array of y-coordinates of the nodes.
-        """
-        return np.array([node.coords[1] for node in self.nodes], dtype=np.float64)
 
     @property
     def jacobian_determinant(self) -> float:
