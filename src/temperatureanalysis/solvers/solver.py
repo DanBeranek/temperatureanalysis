@@ -59,7 +59,7 @@ class Solver:
 
         for elements in self.model.mesh.elements.values():
             for element in elements:
-                dofs = element.globals_dofs
+                dofs = element.global_dofs
                 n_dofs = len(dofs)
 
                 m_el = get_local_matrix(element)

@@ -42,7 +42,7 @@ class FiniteElement(ABC):
         self.material = material
         self.nodes = nodes
         self.n_integration_points = n_integration_points
-        self.globals_dofs: npt.NDArray[np.int64] = np.array([node.uid for node in nodes], dtype=np.int64)
+        self.global_dofs: npt.NDArray[np.int64] = np.array([node.uid for node in nodes], dtype=np.int64)
 
     def __repr__(self) -> str:
         """String representation of the finite element."""
