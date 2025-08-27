@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import numba as nb
 
 from temperatureanalysis.analysis.finite_elements.finite_element import FiniteElement
 import temperatureanalysis.analysis.gauss as gauss
@@ -22,6 +23,59 @@ B_N = np.array([
     [-1.0, 0.0, 1.0],
 ])
 
+
+@nb.jit(cache=True, fastmath=True)
+def _inv2(
+    a11: float,
+    a12: float,
+    a21: float,
+    a22: float
+) -> tuple[tuple[float, float, float, float], float]:
+    """
+    Compute the inverse and determinant of a 2×2 matrix [[a11, a12], [a21, a22]].
+
+    Args:
+        a11, a12, a21, a22: Elements of the 2x2 matrix.
+
+    Returns:
+        A tuple containing the elements of the inverse matrix and the determinant.
+    """
+    det = a11 * a22 - a12 * a21
+    inv = (a22 / det, -a12 / det, -a21 / det, a11 / det)
+    return inv, det
+
+@nb.jit(cache=True, fastmath=True)
+def _tri3_B_and_detJ(
+    x: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64]
+) -> tuple[npt.NDArray[np.float64], float]:
+    """
+    Build the constant B matrix and |det(J)| for a Tri3 element.
+
+    Args:
+        x: (3, ) array of x-coordinates of the element's nodes.
+        y: (3, ) array of y-coordinates of the element's nodes.
+
+    Returns:
+        B: (2, 3) array representing the B matrix.
+        detJ_abs: Absolute value of the Jacobian determinant.
+    """
+    # J = B_N @ [[x], [y]].T
+    J00 = B_N[0, 0] * x[0] + B_N[0, 1] * x[1] + B_N[0, 2] * x[2]
+    J01 = B_N[0, 0] * y[0] + B_N[0, 1] * y[1] + B_N[0, 2] * y[2]
+    J10 = B_N[1, 0] * x[0] + B_N[1, 1] * x[1] + B_N[1, 2] * x[2]
+    J11 = B_N[1, 0] * y[0] + B_N[1, 1] * y[1] + B_N[1, 2] * y[2]
+
+    (i00, i01, i10, i11), detJ = _inv2(J00, J01, J10, J11)
+
+    # B = inv(J) @ B_N
+    B = np.empty((2, 3), dtype=np.float64)
+    for j in range(3):
+        b0, b1 = B_N[0, j], B_N[1, j]
+        B[0, j] = i00 * b0 + i01 * b1
+        B[1, j] = i10 * b0 + i11 * b1
+
+    return B, abs(detJ)
 
 class Tri3(FiniteElement):
     """
@@ -50,6 +104,10 @@ class Tri3(FiniteElement):
             material=material,
             n_integration_points=3
         )
+
+        self._B, self._detJ = _tri3_B_and_detJ(self.x, self.y)
+        self._gp, self._w = gauss.gauss_points_weights_triangle(self.n_integration_points)
+
 
     @staticmethod
     def shape_functions(iso_coords: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -101,14 +159,93 @@ class Tri3(FiniteElement):
         """
         return np.linalg.inv(self.jacobian_matrix) @ B_N
 
+    @property
+    def jacobian_determinant(self) -> float:
+        """
+        Absolute Jacobian determinant (constant for Tri3).
+
+        Returns:
+            |det(J)|
+        """
+        return self._detJ
+
     def get_integration_scheme(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
-        Get the integration scheme for the Tri3 element.
+        Return cached Gauss points and weights for 3-point triangle rule.
 
         Returns:
             Tuple of Gauss points and weights for numerical integration.
         """
-        return gauss.gauss_points_weights_triangle(self.n_integration_points)
+        return self._gp, self._w
+
+    def get_conductivity_matrix(self) -> npt.NDArray[np.float64]:
+        """
+        Calculate element conductivity matrix [K] = ∑ (Bᵀ B * k(T_gp) * |detJ| * w).
+
+        Uses:
+            - Cached B matrix (constant for Tri3)
+            - Material thermal conductivity at integration points
+            - Jacobian determinant (constant for Tri3)
+            - Integration weights
+
+        Returns:
+            (3, 3) conductivity matrix for Tri3.
+        """
+        B = self._B
+        detJ = self._detJ
+        Tn = self.temperature_at_nodes
+
+        # Temperatures at gauss points
+        Tgp = np.empty(3, dtype=np.float64)
+        for i, (gp_i, _) in enumerate(zip(self._gp, self._w)):
+            N = self.shape_functions(gp_i)  # (1, 3)
+            Tgp[i] = float(N @ Tn)  # (1, 3) @ (3,) -> (1,)
+
+        # thermal conductivity at the integration points
+        k_gp = np.array([self.material.thermal_conductivity(t) for t in Tgp], dtype=np.float64)
+
+        # Accumulate scalar factor ∑ k_i * w_i
+        k_weight_sum = float(np.dot(k_gp, self._w))
+
+        BtB = B.T @ B
+        return BtB * (detJ * k_weight_sum)
+
+    def get_capacity_matrix(self) -> npt.NDArray[np.float64]:
+        """
+        Calculate element capacity matrix [C] = ∑ (Nᵀ N * c(T_gp) * ρ(T_gp) * |detJ| * w).
+
+        Uses:
+            - Material specific heat capacity and density at integration points
+            - Jacobian determinant (constant for Tri3)
+            - Integration weights
+
+        Returns:
+            (3, 3) capacity matrix for Tri3.
+        """
+        detJ = self._detJ
+        Tn = self.temperature_at_nodes
+
+        # Temperatures at gauss points and keep N at each point
+        Tgp = np.empty(3, dtype=np.float64)
+        N_store: list[npt.NDArray[np.float64]] = []
+        for i, (gp_i, _) in enumerate(zip(self._gp, self._w)):
+            N = self.shape_functions(gp_i)  # (1, 3)
+            N_store.append(N)
+            Tgp[i] = float(N @ Tn)  # (1, 3) @ (3,) -> (1,)
+
+        rho_c_gp = np.array(
+            [self.material.density(t) * self.material.specific_heat_capacity(t) for t in Tgp],
+            dtype=np.float64
+        )
+
+        C = np.zeros((3, 3), dtype=np.float64)
+        for i, (_, w_i) in enumerate(zip(self._gp, self._w)):
+            N = N_store[i]
+            C += (N.T @ N) * (rho_c_gp[i] * detJ * w_i)
+
+        return C
+
+
 
 if __name__ == "__main__":
     # Example usage
