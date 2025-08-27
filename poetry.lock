@@ -678,6 +678,34 @@ files = [
 ]
 
 [[package]]
+name = "intel-cmplr-lib-ur"
+version = "2025.2.1"
+description = "Intel® oneAPI Unified Runtime Libraries package"
+optional = false
+python-versions = "*"
+files = [
+    {file = "intel_cmplr_lib_ur-2025.2.1-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:ecc6eba009ead8ea819d931107ba11e2b502f5d8ebbd287e4901074a764f9792"},
+    {file = "intel_cmplr_lib_ur-2025.2.1-py2.py3-none-win_amd64.whl", hash = "sha256:497348e3bcb9fa0e079ade2d7cf2c10931e78eb9845285d1b6bb6dcd2764964a"},
+]
+
+[package.dependencies]
+umf = "==0.11.*"
+
+[[package]]
+name = "intel-openmp"
+version = "2025.2.1"
+description = "Intel OpenMP* Runtime Library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "intel_openmp-2025.2.1-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:4656e8e864998db776dbb6d045067f75c227f78c72943e07e15b0d1d65ff45c2"},
+    {file = "intel_openmp-2025.2.1-py2.py3-none-win_amd64.whl", hash = "sha256:ac69973d6c489ec3697bb320ccce0b274de4462f463e5ea0f078abbcbb933e09"},
+]
+
+[package.dependencies]
+intel-cmplr-lib-ur = "2025.2.1"
+
+[[package]]
 name = "ipython"
 version = "8.37.0"
 description = "IPython: Productive Interactive Computing"
@@ -1033,6 +1061,39 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
+
+[[package]]
+name = "meshio"
+version = "5.3.5"
+description = "I/O for many mesh formats"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "meshio-5.3.5-py3-none-any.whl", hash = "sha256:0736c6e34ecc768f62f2cde5d8233a3529512a9399b25c68ea2ca0d5900cdc10"},
+    {file = "meshio-5.3.5.tar.gz", hash = "sha256:f21f01abd9f29ba06ea119304b3d39e610421cfe93b9dd23362834919f87586d"},
+]
+
+[package.dependencies]
+numpy = ">=1.20.0"
+rich = "*"
+
+[package.extras]
+all = ["h5py", "netCDF4"]
+
+[[package]]
+name = "mkl"
+version = "2025.2.0"
+description = "Intel® oneAPI Math Kernel Library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "mkl-2025.2.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:974b4e222cc94e8d3b67213a361c8ac25d432cc4fccc5f2f00aa15c4e67cc203"},
+    {file = "mkl-2025.2.0-py2.py3-none-win_amd64.whl", hash = "sha256:b6ec153e4a073421dbb52ef99c7be97e66cde0272e4a1e3569b090b6f0130253"},
+]
+
+[package.dependencies]
+intel-openmp = ">=2024,<2026"
+tbb = "==2022.*"
 
 [[package]]
 name = "mpmath"
@@ -1394,6 +1455,27 @@ dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
+name = "pooch"
+version = "1.8.2"
+description = "A friend to fetch your data files"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pooch-1.8.2-py3-none-any.whl", hash = "sha256:3529a57096f7198778a5ceefd5ac3ef0e4d06a6ddaf9fc2d609b806f25302c47"},
+    {file = "pooch-1.8.2.tar.gz", hash = "sha256:76561f0de68a01da4df6af38e9955c4c9d1a5c90da73f7e40276a5728ec83d10"},
+]
+
+[package.dependencies]
+packaging = ">=20.0"
+platformdirs = ">=2.5.0"
+requests = ">=2.19.0"
+
+[package.extras]
+progress = ["tqdm (>=4.41.0,<5.0.0)"]
+sftp = ["paramiko (>=2.7.0)"]
+xxhash = ["xxhash (>=1.4.3)"]
+
+[[package]]
 name = "pre-commit"
 version = "4.2.0"
 description = "A framework for managing and maintaining multi-language pre-commit hooks."
@@ -1479,6 +1561,22 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pypardiso"
+version = "0.4.6"
+description = "Python interface to the Intel MKL Pardiso library to solve large sparse linear systems of equations"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "pypardiso-0.4.6-py3-none-any.whl", hash = "sha256:43d370a91ab97062bce1862e76387def1732ad944c5882024c5c3be2c6e9e77c"},
+    {file = "pypardiso-0.4.6.tar.gz", hash = "sha256:ff13eff486a2246d9c5bc9cec9f5bc8009f1b8831b2d10767787d768d98afa06"},
+]
+
+[package.dependencies]
+mkl = "!=2024.0"
+numpy = "*"
+scipy = "*"
+
+[[package]]
 name = "pyparsing"
 version = "3.2.3"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
@@ -1526,6 +1624,32 @@ files = [
 
 [package.dependencies]
 six = ">=1.5"
+
+[[package]]
+name = "pyvista"
+version = "0.46.2"
+description = "Easier Pythonic interface to VTK"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pyvista-0.46.2-py3-none-any.whl", hash = "sha256:29e2724b056bef7b7c2e5bc1a15aa87cba2d84d3b738ac32cf3cffd6a6611287"},
+    {file = "pyvista-0.46.2.tar.gz", hash = "sha256:ff540eb8590d4a6c173c014251b56aabaa9bdbf2e3d4dafb1ad90caf6c677048"},
+]
+
+[package.dependencies]
+matplotlib = ">=3.0.1"
+numpy = ">=1.21.0"
+pillow = "*"
+pooch = "*"
+scooby = ">=0.5.1"
+typing-extensions = ">=4.10"
+vtk = "<9.4.0 || >9.4.0,<9.4.1 || >9.4.1,<9.6.0"
+
+[package.extras]
+all = ["pyvista[colormaps,io,jupyter]"]
+colormaps = ["cmcrameri", "cmocean", "colorcet"]
+io = ["imageio", "meshio (>=5.2)"]
+jupyter = ["ipywidgets", "jupyter-server-proxy", "nest_asyncio", "trame (>=2.5.2)", "trame-client (>=2.12.7)", "trame-server (>=2.11.7)", "trame-vtk (>=2.5.8)", "trame-vuetify (>=2.3.1)"]
 
 [[package]]
 name = "pyyaml"
@@ -1609,6 +1733,24 @@ urllib3 = ">=1.21.1,<3"
 [package.extras]
 socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
+
+[[package]]
+name = "rich"
+version = "14.1.0"
+description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
+optional = false
+python-versions = ">=3.8.0"
+files = [
+    {file = "rich-14.1.0-py3-none-any.whl", hash = "sha256:536f5f1785986d6dbdea3c75205c473f970777b4a0d6c6dd1b696aa05a3fa04f"},
+    {file = "rich-14.1.0.tar.gz", hash = "sha256:e497a48b844b0320d45007cdebfeaeed8db2a4f4bcf49f15e455cfc4af11eaa8"},
+]
+
+[package.dependencies]
+markdown-it-py = ">=2.2.0"
+pygments = ">=2.13.0,<3.0.0"
+
+[package.extras]
+jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
 name = "ruamel-yaml"
@@ -1763,6 +1905,20 @@ numpy = ">=1.25.2,<2.6"
 dev = ["cython-lint (>=0.12.2)", "doit (>=0.36.0)", "mypy (==1.10.0)", "pycodestyle", "pydevtool", "rich-click", "ruff (>=0.0.292)", "types-psutil", "typing_extensions"]
 doc = ["intersphinx_registry", "jupyterlite-pyodide-kernel", "jupyterlite-sphinx (>=0.19.1)", "jupytext", "linkify-it-py", "matplotlib (>=3.5)", "myst-nb (>=1.2.0)", "numpydoc", "pooch", "pydata-sphinx-theme (>=0.15.2)", "sphinx (>=5.0.0,<8.2.0)", "sphinx-copybutton", "sphinx-design (>=0.4.0)"]
 test = ["Cython", "array-api-strict (>=2.3.1)", "asv", "gmpy2", "hypothesis (>=6.30)", "meson", "mpmath", "ninja", "pooch", "pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "scikit-umfpack", "threadpoolctl"]
+
+[[package]]
+name = "scooby"
+version = "0.10.1"
+description = "A Great Dane turned Python environment detective"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "scooby-0.10.1-py3-none-any.whl", hash = "sha256:c099a0b4b013f949436bdd4e2a6e9b4f8aba8211e2a65dc1d2d3b9317ef8d4c1"},
+    {file = "scooby-0.10.1.tar.gz", hash = "sha256:2ea147670cbf7cad42600c9990f2289f7b3c02c0769b0cc02a73e59d11c8f885"},
+]
+
+[package.extras]
+cpu = ["mkl", "psutil"]
 
 [[package]]
 name = "six"
@@ -2064,6 +2220,31 @@ mpmath = ">=1.1.0,<1.4"
 dev = ["hypothesis (>=6.70.0)", "pytest (>=7.1.0)"]
 
 [[package]]
+name = "tbb"
+version = "2022.2.0"
+description = "Intel® oneAPI Threading Building Blocks (oneTBB)"
+optional = false
+python-versions = "*"
+files = [
+    {file = "tbb-2022.2.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:522189f3e370a6b9c92b8a7fbdecf3633f7c53f0ea4eb8d6891a7f5f00c78099"},
+    {file = "tbb-2022.2.0-py3-none-win_amd64.whl", hash = "sha256:acbce7632d4d7acc6bdfe9849a57ab1624490198699eb16ea63243cfb4fd4cfa"},
+]
+
+[package.dependencies]
+tcmlib = "==1.*"
+
+[[package]]
+name = "tcmlib"
+version = "1.4.0"
+description = "Thread Composability Manager"
+optional = false
+python-versions = "*"
+files = [
+    {file = "tcmlib-1.4.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:b2a2b68c100cc2a6163d394353b3013ab2479e70300b9bc1cb7f7822bcc38a40"},
+    {file = "tcmlib-1.4.0-py2.py3-none-win_amd64.whl", hash = "sha256:ab24f73c52b224cb744a0c0c28fcef8e51aec3c88aa6b39202c149495d6d2ea0"},
+]
+
+[[package]]
 name = "tokenize-rt"
 version = "6.2.0"
 description = "A wrapper around the stdlib `tokenize` which roundtrips."
@@ -2113,6 +2294,20 @@ files = [
     {file = "typing_extensions-4.14.0-py3-none-any.whl", hash = "sha256:a1514509136dd0b477638fc68d6a91497af5076466ad0fa6c338e44e359944af"},
     {file = "typing_extensions-4.14.0.tar.gz", hash = "sha256:8676b788e32f02ab42d9e7c61324048ae4c6d844a399eebace3d4979d75ceef4"},
 ]
+
+[[package]]
+name = "umf"
+version = "0.11.0"
+description = "Unified Memory Framework"
+optional = false
+python-versions = "*"
+files = [
+    {file = "umf-0.11.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:9f2a6be0de4202fdcdddf9045c54ae6eb4c4afaec38e1871a603db3f72d36bab"},
+    {file = "umf-0.11.0-py2.py3-none-win_amd64.whl", hash = "sha256:24b2ec23b6716f39dde53d1b29f8de1ec73c33a1e3b137dae9caf0caeaf50201"},
+]
+
+[package.dependencies]
+tcmlib = ">=1.4"
 
 [[package]]
 name = "urllib3"
@@ -2168,6 +2363,51 @@ platformdirs = ">=3.9.1,<5"
 [package.extras]
 docs = ["furo (>=2023.7.26)", "proselint (>=0.13)", "sphinx (>=7.1.2,!=7.3)", "sphinx-argparse (>=0.4)", "sphinxcontrib-towncrier (>=0.2.1a0)", "towncrier (>=23.6)"]
 test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess (>=1)", "flaky (>=3.7)", "packaging (>=23.1)", "pytest (>=7.4)", "pytest-env (>=0.8.2)", "pytest-freezer (>=0.4.8)", "pytest-mock (>=3.11.1)", "pytest-randomly (>=3.12)", "pytest-timeout (>=2.1)", "setuptools (>=68)", "time-machine (>=2.10)"]
+
+[[package]]
+name = "vtk"
+version = "9.5.0"
+description = "VTK is an open-source toolkit for 3D computer graphics, image processing, and visualization"
+optional = false
+python-versions = "*"
+files = [
+    {file = "vtk-9.5.0-cp310-cp310-macosx_10_10_x86_64.whl", hash = "sha256:f9ed7461707bc2b5b2cca6eb3a749de82269ba632ab39a5e0f3b55e3d5002ff8"},
+    {file = "vtk-9.5.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:b0c1e235d6e2c98ad38ddfa24c71aef002ee203cdf2edd7fb0ac8c215e899fcb"},
+    {file = "vtk-9.5.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:13e9cb8b370a4036c207d49c5e587035d9d041f5fe95de94a0f3103491480cba"},
+    {file = "vtk-9.5.0-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:28edfb69202e17e3fa07ae7d6179243415ff8c61befaac31a3385a80c3d5b4a8"},
+    {file = "vtk-9.5.0-cp310-cp310-win_amd64.whl", hash = "sha256:84ffda07506d5ac1b969bce9cc264577bd58752b62cf308ae55f007d0805f6b6"},
+    {file = "vtk-9.5.0-cp311-cp311-macosx_10_10_x86_64.whl", hash = "sha256:8b94c3899c9f59bd25055e36695e9056babb38dc743ac59ce483f281b0ddf022"},
+    {file = "vtk-9.5.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:df7d1afc47c3243c47daa04de5f80d2b18718d31a779c55346c653f0cae9d522"},
+    {file = "vtk-9.5.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7676ca7ea2800a9ce377e0e475e7f0956f5d034031ca3bff3b3e584e9aee61c8"},
+    {file = "vtk-9.5.0-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:202e740c10614428ba7e000a15dd08fccdfbf1c6cf9577b28e664d2840576c68"},
+    {file = "vtk-9.5.0-cp311-cp311-win_amd64.whl", hash = "sha256:5894fd1b228d456678c89bf847ebdc8441ea3ae73514d2da40dd1713428912c6"},
+    {file = "vtk-9.5.0-cp312-cp312-macosx_10_10_x86_64.whl", hash = "sha256:27f47c46279bf11645a9d7190c28301653f0231c5191001a75c4bc1119898ea6"},
+    {file = "vtk-9.5.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:96edbea916507c397f4ac5ae32ff706a109b7fbcf3d38c2fe8a47b34afe2e96e"},
+    {file = "vtk-9.5.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1aa229223771e55c50704d0fdae9f17f1991d588d4169935127e6bbf1d437c4b"},
+    {file = "vtk-9.5.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:879256ccbb65d12904ca3f9159cfca1c3812d605ee3062c9c04acf5c6f812164"},
+    {file = "vtk-9.5.0-cp312-cp312-win_amd64.whl", hash = "sha256:ea4fc23ddf7f12021dbbf116f5f764240a2774ad1df2e7655191ca599093080d"},
+    {file = "vtk-9.5.0-cp313-cp313-macosx_10_10_x86_64.whl", hash = "sha256:8a7511d161edefa1fae5035483ccff486473e60970b231566e3dbcaf567554ac"},
+    {file = "vtk-9.5.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c9a3028c47d2c91d3ca3188b4815de1bcf9af88492eeceee67fd25a0aeeaa195"},
+    {file = "vtk-9.5.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:31aee64ff6d328997f6e1fc9ac4378551311b8c7d2c00cec18e62f7980103d92"},
+    {file = "vtk-9.5.0-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:bbf7bd211caf0ee36a3478dae918ca81daaf481f2d98c87ae60aa5f2500e483f"},
+    {file = "vtk-9.5.0-cp313-cp313-win_amd64.whl", hash = "sha256:f6ea8516a6ac4910bc8d5291f70a1cf5015b2d57e24005b88f8d9c1d303638d7"},
+    {file = "vtk-9.5.0-cp38-cp38-macosx_10_10_x86_64.whl", hash = "sha256:feef505601b0c76d65e23490f4d5afab0f7b560e8ad041923b9fb4a78e7c4dac"},
+    {file = "vtk-9.5.0-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:bd0772b8492cc47f9b41c615c8cfc5d8f839cfb9cb54470b25cbf46864d98809"},
+    {file = "vtk-9.5.0-cp38-cp38-manylinux_2_28_aarch64.whl", hash = "sha256:944a05167ffb669e76a05257bd7ed7382e51da2551895b91d7672bd4187327d2"},
+    {file = "vtk-9.5.0-cp38-cp38-win_amd64.whl", hash = "sha256:cd640faf9753c2f9ac99c82ce7563bf02bd982b846e633297d1ba61e6a9fa3d9"},
+    {file = "vtk-9.5.0-cp39-cp39-macosx_10_10_x86_64.whl", hash = "sha256:ee27f2bb31b1b19e88061b31ec85b7bb318b7195203352afdd4f6ba6f38cba78"},
+    {file = "vtk-9.5.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:c79ad52aed7fc5662e708de3918778bc33e4f94cea99174ef0a2461869b95ce7"},
+    {file = "vtk-9.5.0-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:5b9a6b5eb422cc089aa6f882b7261d4c888ee423aacd274085c2d5a9eba5c14e"},
+    {file = "vtk-9.5.0-cp39-cp39-manylinux_2_28_aarch64.whl", hash = "sha256:aa629462f8b2b77b7b88962cda4d806e6868b64b1f21d5a4c6a08cdfbc2ae0ec"},
+    {file = "vtk-9.5.0-cp39-cp39-win_amd64.whl", hash = "sha256:74143ce3adc40342ce4c44dd3a319b376d5dee745e19ff20dea3cabe1f13915d"},
+]
+
+[package.dependencies]
+matplotlib = ">=2.0.0"
+
+[package.extras]
+numpy = ["numpy (>=1.9)"]
+web = ["wslink (>=1.0.4)"]
 
 [[package]]
 name = "watchfiles"
@@ -2410,4 +2650,4 @@ tests-strict = ["pytest (==4.6.0)", "pytest (==6.2.5)", "pytest-cov (==3.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<4.0"
-content-hash = "21f0669ba757ade47edbf04991400030561efda793b12285635f209f987d9c33"
+content-hash = "1abf928ca1673b00f687b5683f4e28b8c09a5890ded865bcb1ec939256a86fdf"
