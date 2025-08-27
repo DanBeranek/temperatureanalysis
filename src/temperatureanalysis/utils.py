@@ -54,3 +54,10 @@ def assemble_subarray_at_indices(
     rows, cols = zip(*[(i, j) for i in indices for j in indices])
     # Assemble values using indexing
     array[rows, cols] += subarray.flatten()
+
+def flatten_groups_in_order(groups: dict[str, list]) -> list:
+    """Deterministic flatten of dict-of-lists (sorted by key)."""
+    out: list = []
+    for k in sorted(groups.keys()):
+        out.extend(groups[k])
+    return out
