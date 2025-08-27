@@ -6,7 +6,7 @@ Y = 0.3
 N_X = 3
 N_Y = 4
 
-for coefficient, name in zip([1], ["rectangle-coarse-elements"]):
+for coefficient, name in zip([1, 2, 4], ["rectangle-coarse-elements", "rectangle-middle-elements", "rectangle-fine-elements"]):
 
     gmsh.initialize()
 
@@ -50,8 +50,8 @@ for coefficient, name in zip([1], ["rectangle-coarse-elements"]):
 
     gmsh.model.mesh.renumberNodes(oldTags=old_tags, newTags=new_tags)
 
-    gmsh.option.setNumber("Mesh.PreserveNumberingMsh2", 0)
-    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+    # gmsh.option.setNumber("Mesh.PreserveNumberingMsh2", 0)
+    # gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
     gmsh.write(f"{name}.msh")
     # gmsh.fltk.run()
 
