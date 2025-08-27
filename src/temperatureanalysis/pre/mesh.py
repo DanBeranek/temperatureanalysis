@@ -48,6 +48,8 @@ class Mesh:
         nodes: list[Node],
         elements: dict[str, list[FiniteElement]],
         boundary_elements: dict[str, list[LineElement]],
+        filename: str | None = None,
+        gmsh_nodes_mapping: list[tuple[int, int]] | None = None,
     ) -> None:
         """
         Initialize the Mesh class.
@@ -56,6 +58,8 @@ class Mesh:
         self.nodes = nodes
         self.elements = elements
         self.boundary_elements = boundary_elements
+        self.filename = filename
+        self.gmsh_nodes_mapping = gmsh_nodes_mapping  # (gmsh position, zero-based index)
 
     @classmethod
     def from_file(cls, filename: str) -> Mesh:
@@ -68,11 +72,14 @@ class Mesh:
         coords = flat_coords.reshape(-1, 3)  # Reshape to (num_nodes, 3)
         nodes = []
         nodes_lookup = {}
+        nodes_mapping = []  # stores the mapping from GMSH file node position to zero-based index
+
         for i, (tag, xy) in enumerate(zip(node_tags, coords[:, :2])):  # Use only x and y coordinates
             zero_based_index = tag - 1  # GMSH uses 1-based indexing, convert to 0-based
             node = Node(index=zero_based_index, coords=xy)
             nodes.append(node)
             nodes_lookup[zero_based_index] = node
+            nodes_mapping.append((i, zero_based_index))
 
         # 2) Prepare containers for elements by physical-group names
         surface_elements: dict[str, list[FiniteElement]] = defaultdict(list)
@@ -119,7 +126,13 @@ class Mesh:
                         surface_elements[physical_names[0]].append(element)
 
         gmsh.finalize()
-        return cls(nodes=nodes, elements=surface_elements, boundary_elements=boundary_elements)
+        return cls(
+            nodes=nodes,
+            elements=surface_elements,
+            boundary_elements=boundary_elements,
+            filename=filename,
+            gmsh_nodes_mapping=nodes_mapping,
+        )
 
     @property
     def max_nodes_per_element(self) -> int:
