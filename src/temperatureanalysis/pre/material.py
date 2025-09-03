@@ -1,9 +1,23 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from enum import StrEnum
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
+from temperatureanalysis.pre.material_helpers import (
+    lininterp_scalar,
+    concrete_k_lower, concrete_k_upper, concrete_density, concrete_cp,
+    concrete_props_batch, steel_k, steel_cp, steel_props_batch
+)
+
 from temperatureanalysis.utils import kelvin_to_celsius
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
 
 class Material(ABC):
     """Abstract base class for materials used in temperature analysis."""
@@ -96,6 +110,12 @@ class Concrete(Material):
     ):
         self.boundary = boundary
         self.u = initial_moisture_content
+
+        # Moisture bump for specific heat capacity
+        u_V = np.array([0.0, 1.5, 3.0, 10.0])
+        d_V = np.array([900.0, 1470.0, 2020.0, 5600.0]) - 900.0
+        self.d: float = np.interp(self.u, u_V, d_V)
+
         super().__init__(
             name=name,
             color=color,
@@ -158,10 +178,7 @@ class Concrete(Material):
         """
         temp_C = kelvin_to_celsius(temperature_K)
 
-        u_V = np.array([0.0, 1.5, 3.0, 10.0])
-        d_V = np.array([900.0, 1470.0, 2020.0, 5600.0]) - 900.0
-
-        d = np.interp(self.u, u_V, d_V)
+        d = self.d
 
         if temp_C <= 100.0:
             return 900.0
@@ -173,6 +190,20 @@ class Concrete(Material):
             return 1000.0 + (temp_C - 200.0) / 2.0
         # else:
         return 1100.0
+
+    def props_batch(self, T_K: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """
+        Vectorized material properties for concrete.
+
+        Args:
+            T_K: Temperatures in Kelvin at Gauss points, shape (n,).
+
+        Returns:
+            k:    Thermal conductivity per T (W/(m·K)), shape (n,).
+            rhoc: Volumetric heat capacity ρc_p(T) (J/(m³·K)), shape (n,).
+        """
+        use_upper = (self.boundary == ThermalConductivityBoundary.UPPER)
+        return concrete_props_batch(T_K, self.initial_density, use_upper, self.d)
 
 
 class Steel(Material):
@@ -242,3 +273,16 @@ class Steel(Material):
             return self.initial_density * (545.0 + 17_820.0 / (temp_C - 731.0))
         else:
             return self.initial_density * 650.0
+
+    def props_batch(self, T_K: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """
+        Vectorized material properties for steel.
+
+        Args:
+            T_K: Temperatures in Kelvin at Gauss points, shape (n,).
+
+        Returns:
+            k:    Thermal conductivity per T (W/(m·K)), shape (n,).
+            rhoc: Volumetric heat capacity ρc_p(T) (J/(m³·K)), shape (n,).
+        """
+        return steel_props_batch(T_K, self.initial_density)
