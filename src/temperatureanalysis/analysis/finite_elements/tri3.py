@@ -202,7 +202,10 @@ class Tri3(FiniteElement):
             Tgp[i] = float(N @ Tn)  # (1, 3) @ (3,) -> (1,)
 
         # thermal conductivity at the integration points
-        k_gp = np.array([self.material.thermal_conductivity(t) for t in Tgp], dtype=np.float64)
+        if hasattr(self.material, "props_batch"):
+            k_gp, _ = self.material.props_batch(Tgp)
+        else:
+            k_gp = np.array([self.material.thermal_conductivity(t) for t in Tgp], dtype=np.float64)
 
         # Accumulate scalar factor ∑ k_i * w_i
         k_weight_sum = float(np.dot(k_gp, self._w))
@@ -233,10 +236,13 @@ class Tri3(FiniteElement):
             N_store.append(N)
             Tgp[i] = float(N @ Tn)  # (1, 3) @ (3,) -> (1,)
 
-        rho_c_gp = np.array(
-            [self.material.density(t) * self.material.specific_heat_capacity(t) for t in Tgp],
-            dtype=np.float64
-        )
+        if hasattr(self.material, "props_batch"):
+            _, rho_c_gp = self.material.props_batch(Tgp)
+        else:
+            rho_c_gp = np.array(
+                [self.material.density(t) * self.material.specific_heat_capacity(t) for t in Tgp],
+                dtype=np.float64
+            )
 
         C = np.zeros((3, 3), dtype=np.float64)
         for i, (_, w_i) in enumerate(zip(self._gp, self._w)):
