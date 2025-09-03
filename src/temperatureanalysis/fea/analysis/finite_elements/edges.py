@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from temperatureanalysis.analysis.gauss import gauss_points_weights_edge
-from temperatureanalysis.analysis.node import Node
-import temperatureanalysis.analysis.gauss as gauss
+from temperatureanalysis.fea.analysis.node import Node
+import temperatureanalysis.fea.analysis.gauss as gauss
 
 if TYPE_CHECKING:
     import numpy.typing as npt

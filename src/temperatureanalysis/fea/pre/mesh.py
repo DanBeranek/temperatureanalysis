@@ -8,20 +8,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import gmsh
 
-from temperatureanalysis.pre.material import Concrete
-from temperatureanalysis.analysis.node import Node
-from temperatureanalysis.analysis.finite_elements.finite_element import FiniteElement
-from temperatureanalysis.analysis.finite_elements.tri3 import Tri3
-from temperatureanalysis.analysis.finite_elements.tri6 import Tri6
-from temperatureanalysis.analysis.finite_elements.quad4 import Quad4
-from temperatureanalysis.analysis.finite_elements.quad8 import Quad8
-from temperatureanalysis.analysis.finite_elements.edges import LineElement, Line2, Line3
+from temperatureanalysis.fea.pre.material import Concrete
+from temperatureanalysis.fea.analysis import Node
+from temperatureanalysis.fea.analysis import FiniteElement
+from temperatureanalysis.fea.analysis.finite_elements.tri3 import Tri3
+from temperatureanalysis.fea.analysis.finite_elements.tri6 import Tri6
+from temperatureanalysis.fea.analysis import Quad4
+from temperatureanalysis.fea.analysis.finite_elements.quad8 import Quad8
+from temperatureanalysis.fea.analysis.finite_elements.edges import LineElement, Line2, Line3
 
 from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    import numpy.typing as npt
+    pass
 
 LINE_ELEMENT_TYPE_MAP = {
     1: (Line2, 2),  # 2-node line
@@ -222,7 +222,7 @@ class Mesh:
 
 if __name__ == "__main__":
     # Example usage of the Mesh class
-    test = Mesh.from_file("../../../assets/rectangle-middle-elements.msh")
+    test = Mesh.from_file("../../../../assets/rectangle-middle-elements.msh")
     test.plot()
 
     # concrete = Concrete()

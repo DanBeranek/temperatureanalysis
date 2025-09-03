@@ -1,12 +1,12 @@
 """Command-line interface."""
 from temperatureanalysis.dev import timer
-from temperatureanalysis.pre.mesh import Mesh
-from temperatureanalysis.pre.fire_curves import ISO834FireCurve
-from temperatureanalysis.analysis.model import Model
-from temperatureanalysis.solvers.solver import Solver
+from temperatureanalysis.fea.pre import Mesh
+from temperatureanalysis.fea.pre import ISO834FireCurve
+from temperatureanalysis.fea.analysis import Model
+from temperatureanalysis.fea.solvers import Solver
 
 import cProfile
-import pstats
+
 
 @timer
 def main() -> None:

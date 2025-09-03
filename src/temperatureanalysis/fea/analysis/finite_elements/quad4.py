@@ -2,15 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
-
-from temperatureanalysis.analysis.finite_elements.finite_element import FiniteElement
-import temperatureanalysis.analysis.gauss as gauss
+from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
 
 if TYPE_CHECKING:
-    import numpy.typing as npt
-    from temperatureanalysis.pre.material import Material
-    from temperatureanalysis.analysis.node import Node
+    from temperatureanalysis.fea.pre.material import Material
+    from temperatureanalysis.fea.analysis.node import Node
 
 
 class Quad4(FiniteElement):

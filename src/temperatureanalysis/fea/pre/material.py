@@ -7,13 +7,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from temperatureanalysis.pre.material_helpers import (
-    lininterp_scalar,
-    concrete_k_lower, concrete_k_upper, concrete_density, concrete_cp,
-    concrete_props_batch, steel_k, steel_cp, steel_props_batch
+from temperatureanalysis.fea.pre.material_helpers import (
+    concrete_props_batch, steel_props_batch
 )
 
-from temperatureanalysis.utils import kelvin_to_celsius
+from temperatureanalysis.fea.utils import kelvin_to_celsius
 
 if TYPE_CHECKING:
     import numpy.typing as npt

@@ -6,12 +6,9 @@ import os
 import pyvista as pv
 import numpy as np
 import scipy as sp
-import matplotlib.pyplot as plt
-from matplotlib.path import Path
-from scipy.interpolate import griddata
 
-from temperatureanalysis.pre.fire_curves import FireCurve
-from temperatureanalysis.pre.mesh import Mesh
+from temperatureanalysis.fea.pre.fire_curves import FireCurve
+from temperatureanalysis.fea.pre.mesh import Mesh
 
 if TYPE_CHECKING:
     import numpy.typing as npt
