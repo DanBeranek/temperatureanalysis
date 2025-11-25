@@ -102,7 +102,7 @@ class Concrete(Material):
         self,
         initial_density: float = 2300.0,
         initial_moisture_content: float = 0.0,
-        boundary: ThermalConductivityBoundary = ThermalConductivityBoundary.LOWER,
+        boundary: ThermalConductivityBoundary = ThermalConductivityBoundary.UPPER,
         name: str = "Concrete",
         color: str = "gray"
     ):

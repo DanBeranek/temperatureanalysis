@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 import scipy as sp
 
-from temperatureanalysis.fea.analysis import FiniteElement
+from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
 
 from temperatureanalysis.fea.utils import flatten_groups_in_order
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from temperatureanalysis.fea.analysis import Model
+    from temperatureanalysis.fea.analysis.model import Model
 
 try:
     import pypardiso
@@ -255,8 +255,8 @@ class Solver:
         T = self._dqdT
         T.data[:] = 0.0
 
-        temperature = self.model.fire_curve.get_temperature(time=time)
         for i, element in enumerate(self._boundary_elements):
+            temperature = element.get_temperature(time=time)
             dofs = element.global_dofs
 
             F[dofs] += element.get_load_vector(temperature=temperature)
@@ -360,6 +360,9 @@ class Solver:
             # assemble temperature to nodes
             for i, node in enumerate(self.model.mesh.nodes):
                 node.current_temperature = temp_new[i]
+
+            for i, node in enumerate(self.model.mesh.thermocouples.values()):
+                node.temperature_history = np.append(node.temperature_history, temp_new[node.uid])
 
             progress = int((current_time / total_time) * 100)
             print(f"Progress: {progress} % - Time: {current_time:.2f} s - Step: {step} - Residual Norm: {r_norm:.6f} - Iterations: {iteration}")

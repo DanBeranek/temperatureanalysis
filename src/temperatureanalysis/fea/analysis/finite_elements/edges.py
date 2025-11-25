@@ -8,6 +8,7 @@ import numpy as np
 
 from temperatureanalysis.fea.analysis.node import Node
 import temperatureanalysis.fea.analysis.gauss as gauss
+from temperatureanalysis.fea.pre.fire_curves import FireCurve
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -26,6 +27,7 @@ class LineElement(ABC):
         tag: int,
         nodes: list[Node],
         number_of_integration_points: int,
+        fire_curve: FireCurve,
     ) -> None:
         """
         Initialize the line element with an index, tag, and nodes.
@@ -35,12 +37,14 @@ class LineElement(ABC):
             tag: Element tag.
             nodes: List of nodes that form the element.
             number_of_integration_points: Number of integration points for numerical integration.
+            fire_curve: Fire curve to be used for temperature calculations.
         """
         self.id = index
         self.tag = tag
         self.nodes = nodes
         self.number_of_integration_points = number_of_integration_points
         self.global_dofs: npt.NDArray[np.int64] = np.array([node.uid for node in nodes], dtype=np.int64)
+        self.fire_curve = fire_curve
 
     def __repr__(self) -> str:
         """String representation of the line element."""
@@ -104,6 +108,18 @@ class LineElement(ABC):
             The Jacobian value at the local coordinate.
         """
         pass
+
+    def get_temperature(self, time: float) -> npt.NDArray[np.float64]:
+        """
+        Get the temperature at a given time.
+
+        Args:
+            time: Time in seconds.
+
+        Returns:
+            Temperature in Kelvin.
+        """
+        return self.fire_curve.get_temperature(time=time)
 
     def get_integration_scheme(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
@@ -187,7 +203,7 @@ class LineElement(ABC):
 class Line2(LineElement):
     """Linear line element with two nodes."""
 
-    def __init__(self, index: int, tag: int, nodes: list[Node]) -> None:
+    def __init__(self, index: int, tag: int, nodes: list[Node], fire_curve: FireCurve) -> None:
         """
         Initialize the linear line element.
 
@@ -196,7 +212,7 @@ class Line2(LineElement):
             tag: Element tag.
             nodes: List of nodes that form the element.
         """
-        super().__init__(index=index, tag=tag, nodes=nodes, number_of_integration_points=3)
+        super().__init__(index=index, tag=tag, nodes=nodes, number_of_integration_points=3, fire_curve=fire_curve)
 
     def shape_functions(self, iso_coord: float) -> npt.NDArray[np.float64]:
         """Shape functions for a linear line element."""
@@ -212,7 +228,7 @@ class Line2(LineElement):
 class Line3(LineElement):
     """Second order line element with three nodes."""
 
-    def __init__(self, index: int, tag: int, nodes: list[Node]) -> None:
+    def __init__(self, index: int, tag: int, nodes: list[Node], fire_curve: FireCurve) -> None:
         """
         Initialize the second order line element.
 
@@ -221,7 +237,7 @@ class Line3(LineElement):
             tag: Element tag.
             nodes: List of nodes that form the element.
         """
-        super().__init__(index=index, tag=tag, nodes=nodes, number_of_integration_points=3)
+        super().__init__(index=index, tag=tag, nodes=nodes, number_of_integration_points=3, fire_curve=fire_curve)
 
     def shape_functions(self, iso_coord: float) -> npt.NDArray[np.float64]:
         """Shape functions for a second order line element."""

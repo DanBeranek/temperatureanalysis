@@ -20,10 +20,12 @@ class Model:
 
     This class encapsulates the nodes, elements, and materials used in the heat transfer analysis.
     """
-    def __init__(self, mesh: Mesh, fire_curve: FireCurve) -> None:
+    def __init__(
+        self,
+        mesh: Mesh,
+    ) -> None:
         """Initialize the Model object."""
         self.mesh = mesh
-        self.fire_curve = fire_curve
 
         self.n_dof_per_node: int = 1  # Number of degrees of freedom per node (default is 1 for temperature)
 
@@ -38,8 +40,8 @@ class Model:
             dtype=np.float64
         )
 
-        self.q_global: npt.NDarray[np.float64] = np.empty(0, dtype=np.float64)
-        self.dqdT_global: npt.NDarray[np.float64] = np.empty(0, dtype=np.float64)
+        self.q_global: npt.NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        self.dqdT_global: npt.NDArray[np.float64] = np.empty(0, dtype=np.float64)
         self.t_global: npt.NDArray[np.float64] = np.empty(0, dtype=np.float64)  # Global temperature vector
 
         self.dof_connectivity_matrix: npt.NDArray[np.int64] = np.empty(0, dtype=np.int64)
@@ -147,6 +149,7 @@ class Model:
 
         mesh.point_data["temperature"] = temperature_in_gmsh_order - 273.15
 
+        mesh.cell_sets = {}
         meshio.write(out_filename, mesh)
 
         grid = pv.read(out_filename)
