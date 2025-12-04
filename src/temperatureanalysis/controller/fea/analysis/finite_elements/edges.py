@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from temperatureanalysis.fea.analysis.node import Node
-import temperatureanalysis.fea.analysis.gauss as gauss
-from temperatureanalysis.fea.pre.fire_curves import FireCurve
+from temperatureanalysis.controller.fea.analysis.node import Node
+import temperatureanalysis.controller.fea.analysis.gauss as gauss
+from temperatureanalysis.controller.fea.pre.fire_curves import FireCurve
 
 if TYPE_CHECKING:
     import numpy.typing as npt

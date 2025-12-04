@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-import temperatureanalysis.fea.analysis.gauss as gauss
+import temperatureanalysis.controller.fea.analysis.gauss as gauss
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-    from temperatureanalysis.fea.pre.material import Material
-    from temperatureanalysis.fea.analysis.node import Node
+    from temperatureanalysis.controller.fea.pre.material import Material
+    from temperatureanalysis.controller.fea.analysis.node import Node
 
 
 class FiniteElement(ABC):

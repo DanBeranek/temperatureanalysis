@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 import scipy as sp
 
-from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
+from temperatureanalysis.controller.fea.analysis.finite_elements.finite_element import FiniteElement
 
-from temperatureanalysis.fea.utils import flatten_groups_in_order
+from temperatureanalysis.controller.fea.utils import flatten_groups_in_order
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from temperatureanalysis.fea.analysis.model import Model
+    from temperatureanalysis.controller.fea.analysis.model import Model
 
 try:
     import pypardiso

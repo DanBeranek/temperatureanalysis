@@ -5,7 +5,7 @@ from typing import Sequence
 
 import numpy as np
 
-from temperatureanalysis.fea.pre.material import ThermalConductivityBoundary, Concrete
+from temperatureanalysis.controller.fea.pre.material import ThermalConductivityBoundary, Concrete
 
 
 @dataclass(frozen=True)

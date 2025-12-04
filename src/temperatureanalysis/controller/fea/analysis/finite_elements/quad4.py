@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
+from temperatureanalysis.controller.fea.analysis.finite_elements.finite_element import FiniteElement
 
 if TYPE_CHECKING:
-    from temperatureanalysis.fea.pre.material import Material
-    from temperatureanalysis.fea.analysis.node import Node
+    from temperatureanalysis.controller.fea.pre.material import Material
+    from temperatureanalysis.controller.fea.analysis.node import Node
 
 
-class Quad8(FiniteElement):
+class Quad4(FiniteElement):
     """
-    Represents a four-node quadratic quadrilateral finite element (Quad8).
+    Represents a four-node linear quadrilateral finite element (Quad4).
     """
     def __init__(
         self,
@@ -21,7 +21,7 @@ class Quad8(FiniteElement):
         material: Material
     ) -> None:
         """
-        Initialize the Quad8 element.
+        Initialize the Quad4 element.
 
         Args:
             index: Element index.
@@ -34,9 +34,9 @@ class Quad8(FiniteElement):
             tag=tag,
             nodes=nodes,
             material=material,
-            n_integration_points=8
+            n_integration_points=4
         )
         raise NotImplementedError(
-            "Tri6 elements are not yet implemented. "
-            "Please use Quad8 elements for now."
+            "Quad4 elements are not yet implemented. "
+            "Please use Tri3 elements for now."
         )

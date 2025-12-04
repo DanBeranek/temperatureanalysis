@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import numba as nb
 
-from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
-import temperatureanalysis.fea.analysis.gauss as gauss
+from temperatureanalysis.controller.fea.analysis.finite_elements.finite_element import FiniteElement
+import temperatureanalysis.controller.fea.analysis.gauss as gauss
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-    from temperatureanalysis.fea.analysis.node import Node
-    from temperatureanalysis.fea.pre.material import Material
+    from temperatureanalysis.controller.fea.analysis.node import Node
+    from temperatureanalysis.controller.fea.pre.material import Material
 
 
 # B_N = [
@@ -255,8 +255,8 @@ class Tri3(FiniteElement):
 
 if __name__ == "__main__":
     # Example usage
-    from temperatureanalysis.fea.analysis.node import Node
-    from temperatureanalysis.fea.pre.material import Concrete
+    from temperatureanalysis.controller.fea.analysis.node import Node
+    from temperatureanalysis.controller.fea.pre.material import Concrete
 
     # Create nodes
     node1 = Node(index=0, coords=[0.0, 0.0])

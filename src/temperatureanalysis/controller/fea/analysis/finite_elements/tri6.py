@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
+from temperatureanalysis.controller.fea.analysis.finite_elements.finite_element import FiniteElement
 
 if TYPE_CHECKING:
-    from temperatureanalysis.fea.pre.material import Material
-    from temperatureanalysis.fea.analysis.node import Node
+    from temperatureanalysis.controller.fea.pre.material import Material
+    from temperatureanalysis.controller.fea.analysis.node import Node
 
 
 class Tri6(FiniteElement):

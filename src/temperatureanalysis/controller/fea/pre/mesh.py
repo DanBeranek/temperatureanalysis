@@ -8,15 +8,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import gmsh
 
-from temperatureanalysis.fea.pre.fire_curves import FireCurve
-from temperatureanalysis.fea.pre.material import Concrete, Material
-from temperatureanalysis.fea.analysis.node import Node
-from temperatureanalysis.fea.analysis.finite_elements.finite_element import FiniteElement
-from temperatureanalysis.fea.analysis.finite_elements.tri3 import Tri3
-from temperatureanalysis.fea.analysis.finite_elements.tri6 import Tri6
-from temperatureanalysis.fea.analysis.finite_elements.quad4 import Quad4
-from temperatureanalysis.fea.analysis.finite_elements.quad8 import Quad8
-from temperatureanalysis.fea.analysis.finite_elements.edges import LineElement, Line2, Line3
+from temperatureanalysis.controller.fea.pre.fire_curves import FireCurve
+from temperatureanalysis.controller.fea.pre.material import Material
+from temperatureanalysis.controller.fea.analysis.node import Node
+from temperatureanalysis.controller.fea.analysis.finite_elements.finite_element import FiniteElement
+from temperatureanalysis.controller.fea.analysis.finite_elements.tri3 import Tri3
+from temperatureanalysis.controller.fea.analysis.finite_elements.tri6 import Tri6
+from temperatureanalysis.controller.fea.analysis.finite_elements.quad4 import Quad4
+from temperatureanalysis.controller.fea.analysis.finite_elements.quad8 import Quad8
+from temperatureanalysis.controller.fea.analysis.finite_elements.edges import LineElement, Line2, Line3
 
 from typing import TYPE_CHECKING
 
@@ -371,7 +371,7 @@ class Mesh:
 
 if __name__ == "__main__":
     # Example usage of the Mesh class
-    test = Mesh.from_file("../../../../assets/rectangle-middle-elements.msh")
+    test = Mesh.from_file("../../../../../assets/rectangle-middle-elements.msh")
     test.plot()
 
     # concrete = Concrete()

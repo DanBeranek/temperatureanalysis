@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit, QDoubleSpinBox,
-    QComboBox, QPushButton, QTabWidget, QWidget, QLabel, QCheckBox, QSizePolicy, QDialogButtonBox
+    QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDoubleSpinBox,
+    QComboBox, QSizePolicy, QDialogButtonBox
 )
-from PySide6.QtCore import Qt
 
 import pyqtgraph as pg
 
-from temperatureanalysis.app.ui.panels.material_dialog.properties import TemperatureDependentProperty, \
-    TemperatureDependentMaterial
-from temperatureanalysis.fea.pre.material import ThermalConductivityBoundary
+from temperatureanalysis.app.ui.panels.material_dialog.properties import TemperatureDependentMaterial
+from temperatureanalysis.controller.fea.pre.material import ThermalConductivityBoundary
 
 
 class MaterialEditorDialog(QDialog):
