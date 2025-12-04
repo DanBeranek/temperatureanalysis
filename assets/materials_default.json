@@ -1,0 +1,15 @@
+{
+  "Steel_Simple": {
+    "category": "Structural",
+    "density": 7850.0,
+    "conductivity": {
+      "type": "table",
+      "data": [[20, 53.3], [800, 27.3]]
+    },
+    "capacity": {
+      "type": "function",
+      "formula": "425 + 7.73e-1 * T - 1.69e-3 * T**2 + 2.22e-6 * T**3",
+      "valid_range": [20, 1200]
+    }
+  }
+}
