@@ -279,7 +279,8 @@ class Solver:
         total_time: float,
         initial_temperature: float = 20 + 273.15,
         tolerance: float = 1e-2,
-        verbose: bool = False
+        verbose: bool = False,
+        callback: Callable[[float], None] | None = None
     ) -> FEAResult:
         # Time step parameters
         current_time = 0.0
@@ -375,7 +376,11 @@ class Solver:
                 node.temperature_history = np.append(node.temperature_history, temp_new[node.uid])
 
             progress = int((current_time / total_time) * 100)
-            print(f"Progress: {progress} % - Time: {current_time:.2f} s - Step: {step} - Residual Norm: {r_norm:.6f} - Iterations: {iteration}")
+            if verbose:
+                print(f"Progress: {progress} % - Time: {current_time:.2f} s - Step: {step} - Residual Norm: {r_norm:.6f} - Iterations: {iteration}")
+
+            if callback:
+                callback(progress)
             # print(f"Step: {step} | Finished {progress} %")
             # vector = ' '.join(f"{x:.3f}" for x in F)
             # print(f"F: [{vector}]")

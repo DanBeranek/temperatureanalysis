@@ -76,7 +76,7 @@ class SolverWorker(QThread):
             if not self.project.mesh_path:
                 raise ValueError("Mesh not generated.")
 
-            self.progress_updated.emit(0, "Initializing Model...")
+            self.progress_updated.emit(0, "Spouštím výpočet...")
 
             # 4. Initialize Solver
             solver = Solver(model=self.model)
@@ -84,13 +84,26 @@ class SolverWorker(QThread):
             # 5. Run Simulation
             tot_time = self.project.total_time_minutes * 60.0  # total simulation time in seconds
             dt = self.project.time_step  # time step in seconds
-            self.progress_updated.emit(10, "Running FEA...")
 
-            # NOTE: This call blocks until completion
-            # To get live progress, Solver.solve needs to emit events or accept a callback
-            result = solver.solve(dt=dt, total_time=tot_time)
+            # ---- Progress callback ----
+            def progress_callback(percentage: int) -> None:
+                percentage = min(percentage, 98) # Cap at 99% until done
+                msg = f"Probíhá výpočet... {percentage}% dokončeno."
+                self.progress_updated.emit(percentage, msg)
 
-            self.progress_updated.emit(90, "Processing results...")
+            # --- RUN SOLVER ---
+            # Try passing the callback. If Solver doesn't accept it yet, fallback.
+            try:
+                result = solver.solve(
+                    dt=dt,
+                    total_time=tot_time,
+                    callback=progress_callback  # <--- Injecting callback
+                )
+            except TypeError:
+                logger.warning("Solver.solve() does not accept 'callback' argument. Running without live updates.")
+                result = solver.solve(dt=dt, total_time=tot_time)
+
+            self.progress_updated.emit(99, "Zpracovávám výsledky...")
 
             logger.info("Extracting results from the model...")
             self.project.results = result.temperatures

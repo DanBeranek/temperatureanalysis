@@ -62,6 +62,7 @@ class ResultsControlPanel(QWidget):
 
         self.progress = QProgressBar()
         self.progress.setVisible(False)
+        self.progress.setTextVisible(True)
         l_calc.addWidget(self.progress)
         layout.addWidget(grp_calc)
 
