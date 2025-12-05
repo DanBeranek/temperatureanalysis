@@ -57,8 +57,8 @@ class PyVistaWidget(QWidget):
         self._init_plotter()
 
         # Grid config
-        self._major_spacing: float = 1.0
-        self._minor_spacing: float = 0.5
+        self._major_spacing: float = 0.5
+        self._minor_spacing: float = 0.1
         self._label_formatter: Callable[[float], str] = lambda v: f"{v:g}"
 
         # Actors state
@@ -67,6 +67,12 @@ class PyVistaWidget(QWidget):
         self._ruler_actors: List[vtkTextActor] = []
         self._preview_domain_actors: Dict[str, pv.Actor] = {}
         self._preview_edge_actors: Dict[str, pv.Actor] = {}
+
+        # Result Cache (To prevent flickering)
+        self._result_actors: List[pv.Actor] = []
+        self._cached_mesh: Optional[pv.DataSet] = None
+        self._cached_mesh_path: Optional[str] = None
+        self._cached_mesh_actor: Optional[pv.Actor] = None
 
         # Cache for regrid
         self._last_camera_signature: Optional[Tuple[float, float, float, int, int]] = None
@@ -123,9 +129,11 @@ class PyVistaWidget(QWidget):
         draw_temperature: bool = True,
         v_min: Optional[float] = None,
         v_max: Optional[float] = None,
+        regrid: bool = True,
     ) -> None:
         """
         Displays a scalar field on the mesh.
+        Optimized to avoid flickering by reusing the mesh actor.
 
         Args:
             mesh_path: Path to the .vtu/.msh file.
@@ -134,22 +142,12 @@ class PyVistaWidget(QWidget):
             draw_temperature: Whether to show the colored heat map.
             v_min: Minimum value for the scalar bar (color map).
             v_max: Maximum value for the scalar bar (color map).
+            regrid: Whether to recompute the grid after rendering.
         """
-        # Don't clear everything, just update the mesh layer
-        # But for safety in this version, let's clear actors.
-        self.plotter.clear()
+        # self._clear_results()
 
         try:
-            mesh = pv.read(mesh_path)
-
-            # Ensure scalars match node count
-            if len(scalars) != mesh.n_points:
-                print(f"Error: Result size {len(scalars)} != Mesh points {mesh.n_points}")
-                return
-
-            # Assign scalars
             celsius_data = scalars - 273.15  # Convert from Kelvin to Celsius
-            mesh.point_data["temperature"] = celsius_data  # Convert from Kelvin to Celsius
 
             # Determine plot limits if not provided
             if v_min is None:
@@ -157,68 +155,137 @@ class PyVistaWidget(QWidget):
             if v_max is None:
                 v_max = np.nanmax(celsius_data)
 
+            # 2. Check if we need a full reload or just an update
+            # We reload if the file path changed or if we don't have a cache
+            is_new_mesh = (mesh_path != self._cached_mesh_path) or (self._cached_mesh is None)
+
+            if is_new_mesh:
+                # -- FULL RELOAD --
+                self._clear_results()  # Clear all previous result actors
+
+                # Load new mesh
+                self._cached_mesh = pv.read(mesh_path)
+                self._cached_mesh_path = mesh_path
+                self._cached_mesh_actor = None  # Will be created below
+
+                # Validate size
+                if len(scalars) != self._cached_mesh.n_points:
+                    print(f"Error: Result size {len(scalars)} != Mesh points {self._cached_mesh.n_points}")
+                    return
+
+            else:
+                # -- UPDATE EXISTING --
+                # Remove "decorations" (Isolines, Labels) but KEEP the main mesh actor
+                # We iterate backwards to safely remove items from the list
+                for actor in list(self._result_actors):
+                    if actor == self._cached_mesh_actor:
+                        continue  # Keep the main heatmap
+                    self.plotter.remove_actor(actor)
+                    self._result_actors.remove(actor)
+
+            # 3. Update Scalar Data on the Mesh Object
+            # This updates the data in memory without destroying the object
+            self._cached_mesh.point_data["temperature"] = celsius_data
+
             if draw_temperature:
                 scalars = "temperature"
             else:
                 scalars = None
 
-            self.plotter.add_mesh(
-                mesh,
-                scalars=scalars,
-                cmap="jet",
-                clim=[v_min, v_max],
-                # show_edges=draw_mesh,
-                line_width=0.01,
-                edge_color='grey',
-                scalar_bar_args={
-                    "title": "Teplota (°C)",
-                    "vertical": True,
-                    "fmt": "%.0f",
-                    "position_x": 0.85,
-                    "position_y": 0.5,
-                },
-                interpolate_before_map=True,
-            )
+            # 4. Create or Update Main Actor
+            if self._cached_mesh_actor is None:
+                # Create the actor for the first time
+                self._cached_mesh_actor = self.plotter.add_mesh(
+                    self._cached_mesh,
+                    scalars=scalars,
+                    cmap="jet",
+                    clim=[v_min, v_max],
+                    # show_edges=draw_mesh,
+                    line_width=0.01,
+                    edge_color='grey',
+                    scalar_bar_args={
+                        "title": "Teplota (°C)",
+                        "vertical": True,
+                        "fmt": "%.0f",
+                        "position_x": 0.85,
+                        "position_y": 0.5,
+                    },
+                    interpolate_before_map=True,
+                )
+                self._result_actors.append(self._cached_mesh_actor)
+
+            else:
+                # Update existing actor
+                # If we toggled visibility of scalars
+                if draw_temperature:
+                    self._cached_mesh_actor.mapper.scalar_range = (v_min, v_max)
+                    self._cached_mesh_actor.mapper.scalar_visibility = True
+                else:
+                    self._cached_mesh_actor.mapper.scalar_visibility = False
 
             if draw_isotherm and draw_temperature:
                 # Generate contour lines at default levels
+                celsius_min = np.nanmin(celsius_data)
+                celsius_max = np.nanmax(celsius_data)
                 levels = [500]
-                isolines = mesh.contour(isosurfaces=levels, scalars="temperature")
+                valid_levels = [l for l in levels if celsius_min <= l <= celsius_max]
 
-                # Add them as black isolines
-                self.plotter.add_mesh(
-                    isolines,
-                    color="black",
-                    line_width=1.5,
-                    show_scalar_bar=False,
-                    render_lines_as_tubes=True  # nicer visibility
-                )
+                if valid_levels:
+                    isolines = self._cached_mesh.contour(isosurfaces=levels, scalars="temperature")
 
-                # Add labels manually
-                for value in levels:
-                    # Extract only the polyline(s) for this isovalue
-                    iso = mesh.contour(isosurfaces=[value], scalars="temperature")
+                    # Add them as black isolines
+                    isolines_actor = self.plotter.add_mesh(
+                        isolines,
+                        color="black",
+                        line_width=1.5,
+                        show_scalar_bar=False,
+                        render_lines_as_tubes=True  # nicer visibility
+                    )
 
-                    # Take the first point of the isoline
-                    if iso.n_points > 0:
-                        idx = iso.n_points // 2
-                        point = iso.points[idx]
+                    self._result_actors.append(isolines_actor)
 
-                        self.plotter.add_point_labels(
-                            point,
-                            [f"{value}°C"],
-                            font_size=12,
-                            text_color="black",
-                            fill_shape=True,
-                            always_visible=True,
-                        )
+                    # Add labels manually
+                    for value in levels:
+                        # Extract only the polyline(s) for this isovalue
+                        iso = self._cached_mesh.contour(isosurfaces=[value], scalars="temperature")
+
+                        # --- FIX FOR STUCK POINTS ---
+                        # Explicitly remove vertex cells (dots) from the contour polydata
+                        iso.verts = np.empty(0, dtype=int)
+
+                        # Take the first point of the isoline
+                        if iso.n_points > 0:
+                            idx = iso.n_points // 2
+                            point = iso.points[idx]
+
+                            lbl_actor = self.plotter.add_point_labels(
+                                point,
+                                [f"{value}°C"],
+                                font_size=12,
+                                text_color="black",
+                                fill_shape=True,
+                                always_visible=True,
+                                show_points=False,
+                            )
+                            self._result_actors.append(lbl_actor)
+                            # self._result_actors.append(point)
+
+            # Force redraw
+            self.plotter.render()
 
             # Re-add grid
-            self._update_grid_from_camera()
+            if regrid:
+                self._update_grid_from_camera()
             # self.plotter.reset_camera() # Optional: Don't reset if animating
 
         except Exception as e:
             print(f"Failed to render results: {e}")
+
+    def _clear_results(self):
+        """Remove only results-related actors."""
+        for actor in self._result_actors:
+            self.plotter.remove_actor(actor)
+        self._result_actors.clear()
 
     def _render_geometry_layer(self, geometry_data: GeometryData) -> None:
         """

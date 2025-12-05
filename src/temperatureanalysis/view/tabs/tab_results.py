@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ResultsControlPanel(QWidget):
     # Signal: (mesh_path, temperature_array)
-    update_view_requested = Signal(str, object)
+    update_view_requested = Signal(str, object, bool)
 
     def __init__(self, project_state: ProjectState) -> None:
         super().__init__()
@@ -153,4 +153,4 @@ class ResultsControlPanel(QWidget):
         self.lbl_time.setText(f"Čas: {str(datetime.timedelta(seconds=time_val))}")
 
         # Emit signal to MainWindow
-        self.update_view_requested.emit(self.project.mesh_path, temp_data)
+        self.update_view_requested.emit(self.project.mesh_path, temp_data, False)

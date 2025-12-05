@@ -192,12 +192,12 @@ class MainWindow(QMainWindow):
         self.update_visualization(reset_camera=False)
         self.set_modified(True)
 
-    def on_results_update(self, mesh_path: str, scalars) -> None:
+    def on_results_update(self, mesh_path: str, scalars, regrid: bool = True) -> None:
         """Called when user scrubs the time slider."""
         celsius_data = np.asarray(self.project.results) - 273.15
         v_min = np.min(celsius_data)
         v_max = np.max(celsius_data)
-        self.visualizer.show_results(mesh_path, scalars, v_min=v_min, v_max=v_max)
+        self.visualizer.show_results(mesh_path, scalars, v_min=v_min, v_max=v_max, regrid=regrid)
 
     # --- FILE SLOTS ---
 
