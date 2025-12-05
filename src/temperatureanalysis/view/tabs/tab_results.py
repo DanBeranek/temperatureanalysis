@@ -78,6 +78,24 @@ class ResultsControlPanel(QWidget):
         self.project.total_time_minutes = self.spin_total_time.value()
         self.project.time_step = self.spin_dt.value()
 
+    def load_from_state(self) -> None:
+        """Syncs UI from loaded ProjectState."""
+        self.spin_total_time.blockSignals(True)
+        self.spin_dt.blockSignals(True)
+
+        self.spin_total_time.setValue(self.project.total_time_minutes)
+        self.spin_dt.setValue(self.project.time_step)
+
+        self.spin_total_time.blockSignals(False)
+        self.spin_dt.blockSignals(False)
+
+        # Reset slider/status if results exist
+        if self.project.results:
+            self.on_finished()  # Re-enable controls
+        else:
+            self.slider.setEnabled(False)
+            self.lbl_time.setText("Čas: -")
+
     def on_run_clicked(self) -> None:
         if not self.project.mesh_path:
             QMessageBox.warning(self, "Chyba", "Nejdříve musíte vygenerovat síť.")

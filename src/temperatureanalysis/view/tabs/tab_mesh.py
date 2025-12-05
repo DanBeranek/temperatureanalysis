@@ -137,7 +137,7 @@ class MeshControlPanel(QWidget):
             self.btn_generate.setEnabled(True)
 
     def reset_status(self) -> None:
-        self._set_status_styled("Stav: Neaktuální (Geometrie změněna)", "orange", bold=True)
+        self._set_status_styled("Stav: Síť nebyla generována.", "gray", bold=True)
         self.lbl_stats.setText("")
 
     def update_status_from_state(self) -> None:

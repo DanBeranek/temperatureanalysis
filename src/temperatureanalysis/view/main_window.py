@@ -268,12 +268,28 @@ class MainWindow(QMainWindow):
         We need to force the Widgets to read from the State again.
         """
         # 1. Update Geometry Panel
-        self.geom_panel.load_from_state()
+        self.geom_panel.blockSignals(True)
+        try:
+            self.geom_panel.load_from_state()
+        finally:
+            self.geom_panel.blockSignals(False)
 
-        # 2. Update Visualization
-        self.update_visualization()
+        # 2. Reset Mesh Status if needed
+        if not self.project.mesh_path:
+            self.mesh_panel.reset_status()
+        else:
+            self.mesh_panel.update_status_from_state()
 
-    def update_visualization(self, reset_camera:bool = True) -> None:
+        # 3. Update Results (will trigger visualization if results exists)
+        self.results_panel.load_from_state()
+
+        # 4. Update Visualization ONLY if there is no results
+        # If results exist, results_panel.load_from_state() -> on_finished() -> emit(update_view)
+        # has already run. We don't want to overwrite it with wireframe.
+        if not self.project.results:
+            self.update_visualization()
+
+    def update_visualization(self, reset_camera: bool = True) -> None:
         # Call the new unified method
         self.visualizer.update_scene(project_state=self.project, reset_camera=reset_camera)
 

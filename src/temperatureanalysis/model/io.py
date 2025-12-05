@@ -53,15 +53,15 @@ class IOManager:
                 f.attrs["version"] = APP_VERSION
                 f.attrs["project_name"] = state.project_name
 
-                # --- SAVE GEOMETRY ---
+                # --- 1. SAVE GEOMETRY ---
                 grp_geo = f.create_group("geometry")
 
-                # 1. Save the high-level type identifier
+                # 1.1 Save the high-level type identifier
                 # We use the class name of the parameters as the strict type identifier
                 param_type_name = state.geometry.parameters.__class__.__name__
                 grp_geo.attrs["parameters_class"] = param_type_name
 
-                # 2. Save the parameters
+                # 1.2. Save the parameters
                 # asdict converts the dataclass to a dict {width: 10, ...}
                 # We save ONLY these fields.
                 params_dict = asdict(state.geometry.parameters)
@@ -70,7 +70,30 @@ class IOManager:
                 for key, val in params_dict.items():
                     grp_params.attrs[key] = val
 
-                # 3. Save Mesh as binary blob
+                # --- 2. SAVE ANALYSIS SETTINGS ---
+                grp_sim = f.create_group("analysis_settings")
+                grp_sim.attrs["time_step"] = state.time_step
+                grp_sim.attrs["total_time_minutes"] = state.total_time_minutes
+
+                # --- 3. SAVE RESULTS ---
+                if state.results and state.time_steps:
+                    grp_res = f.create_group("results")
+                    # Save time steps
+                    grp_res.create_dataset("time_steps", data=np.array(state.time_steps))
+
+                    # Save temperature data
+                    # Stack list of 1D arrays into a 2D matrix (Timesteps x Nodes)
+                    # This assumes all frames have same node count (fixed mesh)
+                    if len(state.results) > 0:
+                        try:
+                            # Stack: (T, N)
+                            data_matrix = np.vstack(state.results)
+                            grp_res.create_dataset("temperatures", data=data_matrix, compression="gzip")
+                            logger.debug(f"Saved {len(state.results)} result frames.")
+                        except Exception as e:
+                            logger.error(f"Failed to stack results for saving: {e}")
+
+                # --- 4. SAVE MESH (BINARY) ---
                 if state.mesh_path and os.path.exists(state.mesh_path):
                     logger.debug(f"Saving mesh binary from {state.mesh_path}")
                     IOManager._save_mesh_binary(f, state.mesh_path)
@@ -127,6 +150,29 @@ class IOManager:
                         state.geometry.parameters = PredefinedParams(**loaded_values)
                         # Correctly map to PREDEFINED enum
                         state.geometry.shape_type = None
+
+                # --- LOAD ANALYSIS SETTINGS ---
+                if "analysis_settings" in f:
+                    grp_sim = f["analysis_settings"]
+                    if "time_step" in grp_sim.attrs:
+                        state.time_step = float(grp_sim.attrs["time_step"])
+                    if "total_time_minutes" in grp_sim.attrs:
+                        state.total_time_minutes = float(grp_sim.attrs["total_time_minutes"])
+
+                # --- LOAD RESULTS ---
+                state.results = []
+                state.time_steps = []
+
+                if "results" in f:
+                    grp_res = f["results"]
+                    if "time_steps" in grp_res:
+                        state.time_steps = grp_res["time_steps"][:].tolist()
+
+                    if "temperatures" in grp_res:
+                        matrix = grp_res["temperatures"][:]
+                        # Split 2D matrix back into list of 1D arrays for the app
+                        state.results = [row for row in matrix]
+                        logger.debug(f"Loaded {len(state.results)} result frames.")
 
                 # --- 2. LOAD MESH ---
                 mesh_temp_path = IOManager._load_mesh_binary(f)
