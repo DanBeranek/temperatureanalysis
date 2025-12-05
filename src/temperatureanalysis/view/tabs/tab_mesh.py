@@ -1,8 +1,12 @@
 """
 Mesh Generation Control Panel
 """
+import os
+import shutil
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QGroupBox, QFormLayout, QMessageBox, QCheckBox
+    QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QGroupBox, QFormLayout, QMessageBox, QCheckBox,
+    QFileDialog
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -54,6 +58,12 @@ class MeshControlPanel(QWidget):
         self.btn_generate.setMinimumHeight(40)
         self.btn_generate.clicked.connect(self.on_generate_clicked)
         layout.addWidget(self.btn_generate)
+
+        self.btn_export = QPushButton("Exportovat síť")
+        self.btn_export.setMinimumHeight(40)
+        self.btn_export.clicked.connect(self.on_export_clicked)
+        self.btn_export.setEnabled(False)  # Disabled until mesh exists
+        layout.addWidget(self.btn_export)
 
         # --- Status Info ---
         self.lbl_status = QLabel("Stav: Síť nebyla generována.")
@@ -108,6 +118,7 @@ class MeshControlPanel(QWidget):
         self.status_message = "Generuji síť..."
         self.lbl_stats.setText("")
         self.btn_generate.setEnabled(False)
+        self.btn_export.setEnabled(False)
         self.repaint()
 
         try:
@@ -127,6 +138,8 @@ class MeshControlPanel(QWidget):
                 f"Počet elementů: {result.num_elements}"
             )
 
+            self.btn_export.setEnabled(True)
+
             self.mesh_generated.emit(result.filepath)
 
         except Exception as e:
@@ -136,14 +149,46 @@ class MeshControlPanel(QWidget):
         finally:
             self.btn_generate.setEnabled(True)
 
+    def on_export_clicked(self) -> None:
+        """Export the current temporary mesh file to a user-selected location."""
+        if not self.project.mesh_path or not os.path.exists(self.project.mesh_path):
+            QMessageBox.warning(self, "Chyba", "Neexistuje žádný soubor sítě k exportu.")
+            return
+
+        # Suggest a filename
+        default_name = "tunnel_mesh.msh"
+        if self.project.filepath:
+            # Use project name if available
+            base = os.path.splitext(os.path.basename(self.project.filepath))[0]
+            default_name = f"{base}_mesh.msh"
+
+        dest_path, _ = QFileDialog.getSaveFileName(
+            self, "Exportovat Síť", default_name, "Gmsh Files (*.msh);;All Files (*)"
+        )
+
+        if dest_path:
+            try:
+                # Ensure extension
+                if not dest_path.endswith('.msh'):
+                    dest_path += '.msh'
+
+                # Copy the temp file to destination
+                shutil.copy2(self.project.mesh_path, dest_path)
+                QMessageBox.information(self, "Export", f"Síť byla úspěšně uložena do:\n{dest_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Chyba Exportu", f"Nepodařilo se uložit soubor:\n{str(e)}")
+
     def reset_status(self) -> None:
         self._set_status_styled("Stav: Síť nebyla generována.", "gray", bold=True)
         self.lbl_stats.setText("")
+        self.btn_export.setEnabled(False)
 
     def update_status_from_state(self) -> None:
         if self.project.mesh_path:
             self._set_status_styled("Stav: Načteno ze souboru ✓", "blue", bold=True)
             self.lbl_stats.setText("")
+            self.btn_export.setEnabled(True)
         else:
             self.status_message = "Stav: Síť nebyla generována."
             self.lbl_stats.setText("")
+            self.btn_export.setEnabled(False)

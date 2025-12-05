@@ -148,6 +148,11 @@ class MainWindow(QMainWindow):
         self.act_exit = QAction("Ukončit", self)
         self.act_exit.triggered.connect(self.close)
 
+        # Simulation Actions
+        self.act_export_mesh = QAction("Exportovat síť", self)
+        self.act_export_mesh.triggered.connect(self.on_export_mesh_menu)
+        self.act_export_mesh.setEnabled(False)  # Disabled until mesh exists
+
     def _create_menus(self) -> None:
         menu_bar = self.menuBar()
 
@@ -160,6 +165,9 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.act_save_as)
         file_menu.addSeparator()
         file_menu.addAction(self.act_exit)
+
+        mesh_menu = menu_bar.addMenu("&Výpočet")
+        mesh_menu.addAction(self.act_export_mesh)
 
     # --- HELPER METHODS ---
     def update_window_title(self) -> None:
@@ -183,6 +191,7 @@ class MainWindow(QMainWindow):
         if self.project.mesh_path:
             self.project.mesh_path = None
             self.mesh_panel.reset_status()
+            self.act_export_mesh.setEnabled(False)
 
         # 2. Update UI State
         self.set_modified(True)
@@ -193,6 +202,7 @@ class MainWindow(QMainWindow):
         """Slot called when MESH is generated."""
         self.update_visualization(reset_camera=False)
         self.set_modified(True)
+        self.act_export_mesh.setEnabled(True)
 
     def on_results_generated(self) -> None:
         """Slot called when RESULTS are generated."""
@@ -205,6 +215,11 @@ class MainWindow(QMainWindow):
         v_max = np.max(celsius_data)
         self.visualizer.show_results(mesh_path, scalars, v_min=v_min, v_max=v_max, regrid=regrid)
 
+    def on_export_mesh_menu(self) -> None:
+        """Called when clicking Export in the menu bar."""
+        # Reuse logic from the panel
+        self.mesh_panel.on_export_clicked()
+
     # --- FILE SLOTS ---
 
     def on_file_new(self) -> None:
@@ -213,6 +228,7 @@ class MainWindow(QMainWindow):
 
         # Reset dirty flag (updates title)
         self.set_modified(False)
+        self.act_export_mesh.setEnabled(False)
         # Ensure title says "Untitled" (in case it wasn't modified before)
         self.update_window_title()
 
@@ -283,8 +299,10 @@ class MainWindow(QMainWindow):
         # 2. Reset Mesh Status if needed
         if not self.project.mesh_path:
             self.mesh_panel.reset_status()
+            self.act_export_mesh.setEnabled(False)
         else:
             self.mesh_panel.update_status_from_state()
+            self.act_export_mesh.setEnabled(True)
 
         # 3. Update Results (will trigger visualization if results exists)
         self.results_panel.load_from_state()
