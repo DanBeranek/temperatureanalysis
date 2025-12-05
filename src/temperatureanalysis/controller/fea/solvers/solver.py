@@ -280,7 +280,7 @@ class Solver:
         initial_temperature: float = 20 + 273.15,
         tolerance: float = 1e-2,
         verbose: bool = False,
-        callback: Callable[[float], None] | None = None
+        callback: Callable[[int], None] | None = None
     ) -> FEAResult:
         # Time step parameters
         current_time = 0.0
