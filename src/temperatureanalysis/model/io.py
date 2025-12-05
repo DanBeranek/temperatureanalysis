@@ -117,7 +117,7 @@ class IOManager:
             with h5py.File(filepath, "r") as f:
                 # reset the state to clear existing data
                 state.reset()
-                
+
                 if "project_name" in f.attrs:
                     state.project_name = str(f.attrs["project_name"])
 
