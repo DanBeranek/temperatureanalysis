@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import gmsh
 import os
+import logging
 from typing import Dict, Tuple, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 
@@ -25,6 +26,8 @@ from temperatureanalysis.model.geometry_primitives import Point, Line, Arc, Boun
 if TYPE_CHECKING:
     from temperatureanalysis.model.state import ProjectState
 
+# Get logger
+logger = logging.getLogger(__name__)
 
 @dataclass
 class MeshStats:
@@ -66,41 +69,52 @@ class GmshMesher:
             gmsh.initialize()
             self._initialized = True
 
-    def generate_mesh(self, project: ProjectState, mesh_size: float = 0.5) -> MeshStats:
+    def generate_mesh(
+        self,
+        project: ProjectState,
+        lc_min: float = 0.1,
+        lc_max: float = 0.3,
+        use_gradient: bool = False,
+        ) -> MeshStats:
         """
         Generates a 2D mesh from the project geometry.
         Returns the path to the generated .msh file.
+        If use_gradient is True, creates finer mesh near 'inner' boundary.
         """
         self._ensure_init()
         gmsh.model.add("Tunel")
 
-        # 1. Clear previous geometry
-        gmsh.clear()
-
-        # 2. Get the geometry loop
-        loop = self._get_boundary_loop(project)
-
-        if not loop or not loop.entities:
-            raise ValueError("No valid geometry found to mesh.")
-
-        # 3. Translate to GMSH
-        point_cache = PointCache()
-        curve_tags: list[int] = []
-
-        # Categories for Physical Groups
-        tags_inner = []
-        tags_outer = []
-
         try:
+            # 1. Clear previous geometry
+            gmsh.clear()
+            logger.info(f"Generating mesh.")
+
+            # 2. Get the geometry loop
+            loop = self._get_boundary_loop(project)
+
+            if not loop or not loop.entities:
+                raise ValueError("No valid geometry found to mesh.")
+
+            # Base mesh size for points (used as fallback or max)
+            base_lc = lc_min if not use_gradient else lc_max
+
+            # 3. Translate to GMSH
+            point_cache = PointCache()
+            curve_tags: list[int] = []
+
+            # Categories for Physical Groups
+            tags_inner = []
+            tags_outer = []
+
             for entity in loop.entities:
-                p1_tag = point_cache.get_or_create(entity.start, mesh_size)
-                p2_tag = point_cache.get_or_create(entity.end, mesh_size)
+                p1_tag = point_cache.get_or_create(entity.start, base_lc)
+                p2_tag = point_cache.get_or_create(entity.end, base_lc)
                 c_tag = -1
 
                 if isinstance(entity, Line):
                     c_tag = gmsh.model.geo.add_line(p1_tag, p2_tag)
                 if isinstance(entity, Arc):
-                    pc_tag = point_cache.get_or_create(entity.center, mesh_size)
+                    pc_tag = point_cache.get_or_create(entity.center, base_lc)
                     c_tag = gmsh.model.geo.add_circle_arc(p1_tag, pc_tag, p2_tag)
 
                 if c_tag != -1:
@@ -130,8 +144,47 @@ class GmshMesher:
 
             # 5. Synchronization & Meshing
             gmsh.model.geo.synchronize()
-            gmsh.option.set_number("Mesh.CharacteristicLengthMin", mesh_size * 0.9)
-            gmsh.option.set_number("Mesh.CharacteristicLengthMax", mesh_size * 1.1)
+
+            if use_gradient and tags_inner:
+                # Get thickness to scale the gradient field if needed
+                geo = project.geometry
+                thickness = getattr(geo.parameters, "thickness", 0.5)
+                field_limit = max([thickness / 3, 0.2])  # Avoid too small values
+                # 1. Distance field: Calc distance from inner boundary
+                f_dist = gmsh.model.mesh.field.add("Distance")
+                gmsh.model.mesh.field.set_numbers(f_dist, "CurvesList", tags_inner)
+                # Sampling points for accuracy
+                gmsh.model.mesh.field.set_number(f_dist, "Sampling", 100)
+
+                # 2. Threshold field: Map distance to mesh size
+                f_thresh = gmsh.model.mesh.field.add("Threshold")
+                gmsh.model.mesh.field.set_number(f_thresh, "InField", f_dist)
+
+                # Size constraints
+                gmsh.model.mesh.field.set_number(f_thresh, "SizeMin", lc_min)
+                gmsh.model.mesh.field.set_number(f_thresh, "SizeMax", lc_max)
+
+                # Distance constraints
+                # Within 0.0m to 0.1m from inner boundary -> SizeMin
+                # From 0.1m to 0.3m -> Interpolate to SizeMax
+                # Beyond 0.3m -> SizeMax
+                gmsh.model.mesh.field.set_number(f_thresh, "DistMin", 0.1)
+                gmsh.model.mesh.field.set_number(f_thresh, "DistMax", field_limit)
+
+                # Apply as background field
+                gmsh.model.mesh.field.set_as_background_mesh(f_thresh)
+
+                # Disable general characteristic lengths options to let Field control sizing
+                gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 0)
+                gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 0)
+                gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+
+                logger.info(f"Using mesh size gradient from {lc_min:.3f} (0.000 - 0.100) to {lc_max:.3f} (0.100 - {field_limit:.3f}).")
+            else:
+                # Standard uniform mesh size
+                gmsh.option.set_number("Mesh.CharacteristicLengthMin", lc_min * 0.9)
+                gmsh.option.set_number("Mesh.CharacteristicLengthMax", lc_min * 1.1)
+
             gmsh.model.mesh.generate(2)
 
             # 6. Extract statistics
@@ -152,6 +205,8 @@ class GmshMesher:
 
             gmsh.write(output_filename)
 
+            logger.info(f"Mesh generated: {num_nodes} nodes, {num_elements} elements.")
+
             # gmsh.fltk.run()
 
             return MeshStats(
@@ -161,7 +216,7 @@ class GmshMesher:
             )
 
         except Exception as e:
-            print(f"Gmsh Error: {e}")
+            logger.exception("Gmsh generation failed")
             raise e
 
         finally:

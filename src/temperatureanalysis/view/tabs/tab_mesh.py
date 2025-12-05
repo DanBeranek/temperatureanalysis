@@ -2,7 +2,7 @@
 Mesh Generation Control Panel
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QGroupBox, QFormLayout, QMessageBox
+    QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QGroupBox, QFormLayout, QMessageBox, QCheckBox
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -24,12 +24,28 @@ class MeshControlPanel(QWidget):
         grp = QGroupBox("Nastavení Sítě")
         form = QFormLayout(grp)
 
-        self.lc_spin = QDoubleSpinBox()
-        self.lc_spin.setRange(0.01, 2.0)
-        self.lc_spin.setSingleStep(0.05)
-        self.lc_spin.setValue(0.2)
-        self.lc_spin.setSuffix(" m")
-        form.addRow("Velikost elementu:", self.lc_spin)
+        # 1. Gradient Toggle
+        self.chk_gradient = QCheckBox("")
+        self.chk_gradient.toggled.connect(self.on_gradient_toggled)
+        form.addRow("Použít proměnnou hustotu sítě", self.chk_gradient)
+
+        # 2. Inner Size (Always active)
+        self.lc_inner_spin = QDoubleSpinBox()
+        self.lc_inner_spin.setRange(0.01, 2.0)
+        self.lc_inner_spin.setSingleStep(0.01)
+        self.lc_inner_spin.setValue(0.1)  # Default fine
+        self.lc_inner_spin.setSuffix(" m")
+        self.lc_inner_spin.valueChanged.connect(self.on_inner_spin_changed)
+        form.addRow("Velikost elementu (Vnitřní):", self.lc_inner_spin)
+
+        # 3. Outer Size (Optional)
+        self.lc_outer_spin = QDoubleSpinBox()
+        self.lc_outer_spin.setRange(0.01, 2.0)
+        self.lc_outer_spin.setSingleStep(0.05)
+        self.lc_outer_spin.setValue(0.1)  # Default coarse
+        self.lc_outer_spin.setSuffix(" m")
+        self.lc_outer_spin.setEnabled(False)  # Disabled by default
+        form.addRow("Velikost elementu (Vnější):", self.lc_outer_spin)
 
         layout.addWidget(grp)
 
@@ -45,50 +61,89 @@ class MeshControlPanel(QWidget):
         self.lbl_status.setStyleSheet("color: gray;")
         layout.addWidget(self.lbl_status)
 
-        # Detailed stats label
         self.lbl_stats = QLabel("")
         self.lbl_stats.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.lbl_stats)
 
         layout.addStretch()
 
-    def on_generate_clicked(self) -> None:
-        mesh_size = self.lc_spin.value()
+    # --- PROPERTIES ---
 
-        self.lbl_status.setText("Generuji síť...")
+    @property
+    def status_message(self) -> str:
+        return self.lbl_status.text()
+
+    @status_message.setter
+    def status_message(self, text: str) -> None:
+        self.lbl_status.setText(text)
+        self.lbl_status.setStyleSheet("color: gray;")
+
+    def _set_status_styled(self, text: str, color: str, bold: bool = False) -> None:
+        self.lbl_status.setText(text)
+        weight = "bold" if bold else "normal"
+        self.lbl_status.setStyleSheet(f"color: {color}; font-weight: {weight};")
+
+    # --- SLOTS ---
+
+    def on_inner_spin_changed(self) -> None:
+        if not self.chk_gradient.isChecked():
+            # Sync outer with inner when gradient is off
+            self.lc_outer_spin.setValue(self.lc_inner_spin.value())
+
+    def on_gradient_toggled(self, checked: bool) -> None:
+        self.lc_outer_spin.setEnabled(checked)
+        if not self.chk_gradient.isChecked():
+            # Sync outer with inner when gradient is off
+            self.lc_outer_spin.setValue(self.lc_inner_spin.value())
+
+    def on_generate_clicked(self) -> None:
+        lc_min = self.lc_inner_spin.value()
+        lc_max = self.lc_outer_spin.value()
+        use_gradient = self.chk_gradient.isChecked()
+
+        # If gradient is off, use inner size everywhere
+        if not use_gradient:
+            lc_max = lc_min
+
+        self.status_message = "Generuji síť..."
         self.lbl_stats.setText("")
         self.btn_generate.setEnabled(False)
         self.repaint()
 
         try:
-            # Run generation
-            result = self.mesher.generate_mesh(self.project, mesh_size)
+            # Run generation with new params
+            result = self.mesher.generate_mesh(
+                self.project,
+                lc_min=lc_min,
+                lc_max=lc_max,
+                use_gradient=use_gradient
+            )
 
-            # Update State
             self.project.mesh_path = result.filepath
 
-            # Update UI
-            self.lbl_status.setText("Stav: Hotovo ✓")
-            self.lbl_status.setStyleSheet("color: green; font-weight: bold;")
-
+            self._set_status_styled("Stav: Hotovo ✓", "green", bold=True)
             self.lbl_stats.setText(
                 f"Počet uzlů: {result.num_nodes}\n"
                 f"Počet elementů: {result.num_elements}"
             )
 
-            # Notify Main Window (pass path for visualization)
             self.mesh_generated.emit(result.filepath)
 
         except Exception as e:
-            self.lbl_status.setText("Chyba při generování")
-            self.lbl_status.setStyleSheet("color: red;")
+            self._set_status_styled("Chyba při generování", "red")
             QMessageBox.critical(self, "Chyba Sítě", str(e))
 
         finally:
             self.btn_generate.setEnabled(True)
 
     def reset_status(self) -> None:
-        """Called when geometry changes to indicate mesh is invalid."""
-        self.lbl_status.setText("Stav: Neaktuální (Geometrie změněna)")
-        self.lbl_status.setStyleSheet("color: orange; font-weight: bold;")
+        self._set_status_styled("Stav: Neaktuální (Geometrie změněna)", "orange", bold=True)
         self.lbl_stats.setText("")
+
+    def update_status_from_state(self) -> None:
+        if self.project.mesh_path:
+            self._set_status_styled("Stav: Načteno ze souboru ✓", "blue", bold=True)
+            self.lbl_stats.setText("")
+        else:
+            self.status_message = "Stav: Síť nebyla generována."
+            self.lbl_stats.setText("")

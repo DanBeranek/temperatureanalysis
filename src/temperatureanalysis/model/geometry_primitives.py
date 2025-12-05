@@ -104,6 +104,7 @@ class Line:
     end: Point
     id: Optional[int] = None  # Assigned later by Gmsh
     label: Optional[str] = None
+    lc: Optional[float] = None  # Override mesh size for this line
 
     def reverse(self) -> Line:
         return Line(start=self.end, end=self.start)
@@ -131,6 +132,7 @@ class Arc:
     end: Point
     id: Optional[int] = None  # Assigned later by Gmsh
     label: Optional[str] = None
+    lc: Optional[float] = None  # Override mesh size for this line
 
     def reverse(self) -> Arc:
         return Arc(center=self.center, start=self.end, end=self.start)
