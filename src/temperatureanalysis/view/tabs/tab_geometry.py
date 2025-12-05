@@ -121,7 +121,6 @@ class CustomShapeWidget(QWidget):
         # 1. Update Shape Selector
         shape = self.project.geometry.custom_shape
         if shape == CustomTunnelShape.BOX:
-            print("Updated box!")
             self.type_combo.setCurrentText(CustomTunnelShape.BOX)
             self.stack.setCurrentWidget(self.page_box)
 
@@ -133,7 +132,6 @@ class CustomShapeWidget(QWidget):
                 self.box_thick_spin.setValue(params.thickness)
 
         if shape == CustomTunnelShape.CIRCLE:  # Circle
-            print("Updated circle!")
             self.type_combo.setCurrentText(CustomTunnelShape.CIRCLE)
             self.stack.setCurrentWidget(self.page_circle)
 
@@ -303,7 +301,7 @@ class GeometryControlPanel(QWidget):
         current_key = self.project.geometry.group_key
 
         # Find index in combo
-        idx = self.category_combo.findText(current_key.value)
+        idx = self.category_combo.findText(current_key)
         if idx != -1:
             self.category_combo.setCurrentIndex(idx)
 
@@ -312,8 +310,8 @@ class GeometryControlPanel(QWidget):
                 self.page_custom.load_from_state()
             else:
                 self.stack.setCurrentIndex(0)
-                if current_key.value in PROFILE_GROUPS:
-                    self.page_standard.populate_profiles(PROFILE_GROUPS[current_key.value])
+                if current_key in PROFILE_GROUPS:
+                    self.page_standard.populate_profiles(PROFILE_GROUPS[current_key])
                     self.page_standard.load_from_state()
 
         self.category_combo.blockSignals(False)
