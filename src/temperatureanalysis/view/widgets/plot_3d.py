@@ -67,6 +67,7 @@ class PyVistaWidget(QWidget):
         self._ruler_actors: List[vtkTextActor] = []
         self._preview_domain_actors: Dict[str, pv.Actor] = {}
         self._preview_edge_actors: Dict[str, pv.Actor] = {}
+        self._preview_mesh_actors: Dict[str, pv.Actor] = {}
 
         # Result Cache (To prevent flickering)
         self._result_actors: List[pv.Actor] = []
@@ -102,7 +103,14 @@ class PyVistaWidget(QWidget):
         self.plotter.clear()
         self._preview_domain_actors.clear()
         self._preview_edge_actors.clear()
+        self._preview_mesh_actors.clear()
         self._ruler_actors.clear()  # Cleared via _update_grid, but good to be safe
+        # Clear result cache entirely because context changed
+        self._result_actors.clear()
+        self._cached_mesh = None
+        self._cached_mesh_path = None
+        self._cached_mesh_actor = None
+
 
         # 2. Render Geometry Layer
         self._render_geometry_layer(project_state.geometry)
@@ -118,8 +126,6 @@ class PyVistaWidget(QWidget):
             self.plotter.reset_camera()
 
         self._update_grid_from_camera()
-
-        # Update grid based on the final camera position
 
     def show_results(
         self,
@@ -144,7 +150,11 @@ class PyVistaWidget(QWidget):
             v_max: Maximum value for the scalar bar (color map).
             regrid: Whether to recompute the grid after rendering.
         """
-        # self._clear_results()
+        # --- CLEANUP PREVIOUS MODES ---
+        # Ensure Geometry (Blue/Grey fill) is gone
+        self._clear_preview()
+        # Ensure Static Mesh (Wireframe overlay) is gone
+        self._clear_mesh()
 
         try:
             celsius_data = scalars - 273.15  # Convert from Kelvin to Celsius
@@ -281,11 +291,17 @@ class PyVistaWidget(QWidget):
         except Exception as e:
             print(f"Failed to render results: {e}")
 
-    def _clear_results(self):
+    def _clear_results(self) -> None:
         """Remove only results-related actors."""
         for actor in self._result_actors:
             self.plotter.remove_actor(actor)
         self._result_actors.clear()
+
+    def _clear_mesh(self) -> None:
+        """Remove the wireframe mesh overlay used in Geometry preview."""
+        for actor in self._preview_mesh_actors:
+            self.plotter.remove_actor(actor)
+        self._preview_mesh_actors.clear()
 
     def _render_geometry_layer(self, geometry_data: GeometryData) -> None:
         """
