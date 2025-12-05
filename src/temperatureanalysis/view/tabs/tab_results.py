@@ -2,9 +2,9 @@ import datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar, QFormLayout,
-    QDoubleSpinBox
+    QDoubleSpinBox, QStyle, QSpinBox
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 import logging
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.controller.workers import SolverWorker, prepare_simulation_model
@@ -20,6 +20,11 @@ class ResultsControlPanel(QWidget):
         super().__init__()
         self.project = project_state
         self.solver_worker = None
+
+        # Animation Timer
+        self.timer = QTimer()
+        self.timer.setInterval(200)  # 200ms per frame (5 FPS)
+        self.timer.timeout.connect(self.advance_frame)
 
         layout = QVBoxLayout(self)
 
@@ -64,15 +69,49 @@ class ResultsControlPanel(QWidget):
         l_vis = QVBoxLayout(grp_vis)
 
         self.lbl_time = QLabel("Čas: -")
+        self.lbl_time.setAlignment(Qt.AlignCenter)
         l_vis.addWidget(self.lbl_time)
+
+        # Playback Controls Layout
+        hbox_play = QHBoxLayout()
+
+        self.btn_play = QPushButton()
+        # Use built-in standard icon for Play
+        self.btn_play.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self.btn_play.clicked.connect(self.toggle_play)
+        self.btn_play.setEnabled(False)
+        hbox_play.addWidget(self.btn_play)
 
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setEnabled(False)
         self.slider.valueChanged.connect(self.on_slider_changed)
-        l_vis.addWidget(self.slider)
+        hbox_play.addWidget(self.slider)
+
+        l_vis.addLayout(hbox_play)
+
+        # FPS Control
+        hbox_fps = QHBoxLayout()
+        hbox_fps.addWidget(QLabel("Rychlost animace:"))
+        self.spin_fps = QSpinBox()
+        self.spin_fps.setRange(1, 60)
+        self.spin_fps.setValue(10)  # Default 10 FPS
+        self.spin_fps.setSuffix(" FPS")
+        self.spin_fps.valueChanged.connect(self.on_fps_changed)
+        hbox_fps.addWidget(self.spin_fps)
+        hbox_fps.addStretch()
+        l_vis.addLayout(hbox_fps)
+
+        # Apply initial FPS
+        self.on_fps_changed(self.spin_fps.value())
 
         layout.addWidget(grp_vis)
         layout.addStretch()
+
+    def on_fps_changed(self, value: int) -> None:
+        """Update timer interval based on FPS."""
+        if value > 0:
+            interval = 1000 // value
+            self.timer.setInterval(interval)
 
     def on_params_changed(self) -> None:
         self.project.total_time_minutes = self.spin_total_time.value()
@@ -94,6 +133,7 @@ class ResultsControlPanel(QWidget):
             self.on_finished()  # Re-enable controls
         else:
             self.slider.setEnabled(False)
+            self.btn_play.setEnabled(False)
             self.lbl_time.setText("Čas: -")
 
     def on_run_clicked(self) -> None:
@@ -102,6 +142,7 @@ class ResultsControlPanel(QWidget):
             return
 
         self.btn_run.setEnabled(False)
+        self.btn_play.setEnabled(False)
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)  # Indeterminate mode while loading
         self.lbl_time.setText("Načítání modelu...")
@@ -136,6 +177,7 @@ class ResultsControlPanel(QWidget):
         count = len(self.project.results)
         if count > 0:
             self.slider.setEnabled(True)
+            self.btn_play.setEnabled(True)
             self.slider.setRange(0, count - 1)
             self.slider.setValue(count - 1)
             self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], True)
@@ -155,3 +197,30 @@ class ResultsControlPanel(QWidget):
 
         # Emit signal to MainWindow
         self.update_view_requested.emit(self.project.mesh_path, temp_data, False)
+
+    # --- ANIMATION LOGIC ---
+
+    def toggle_play(self) -> None:
+        if self.timer.isActive():
+            self.timer.stop()
+        else:
+            # If at the end, restart from 0
+            if self.slider.value() >= self.slider.maximum():
+                self.slider.setValue(0)
+            self.timer.start()
+
+        self.update_play_icon()
+
+    def advance_frame(self) -> None:
+        current = self.slider.value()
+        if current < self.slider.maximum():
+            self.slider.setValue(current + 1)
+        else:
+            self.timer.stop()
+            self.update_play_icon()
+
+    def update_play_icon(self) -> None:
+        if self.timer.isActive():
+            self.btn_play.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
+        else:
+            self.btn_play.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
