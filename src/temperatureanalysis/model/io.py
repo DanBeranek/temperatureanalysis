@@ -18,7 +18,7 @@ from temperatureanalysis.model.state import (
     ProjectState, GeometryData, BoxParams, CircleParams, PredefinedParams
 )
 # Import TunnelShape to handle Enum conversion
-from temperatureanalysis.model.profiles import CustomTunnelShape
+from temperatureanalysis.model.profiles import CustomTunnelShape, ProfileGroupKey
 
 # Get module logger
 logger = logging.getLogger(__name__)
@@ -60,6 +60,7 @@ class IOManager:
                 # We use the class name of the parameters as the strict type identifier
                 param_type_name = state.geometry.parameters.__class__.__name__
                 grp_geo.attrs["parameters_class"] = param_type_name
+                grp_geo.attrs["group_key"] = str(state.geometry.group_key)
 
                 # 1.2. Save the parameters
                 # asdict converts the dataclass to a dict {width: 10, ...}
@@ -141,15 +142,22 @@ class IOManager:
                     if param_class_name == "BoxParams":
                         state.geometry.parameters = BoxParams(**loaded_values)
                         state.geometry.shape_type = CustomTunnelShape.BOX
+                        state.geometry.custom_shape = CustomTunnelShape.BOX
+                        state.geometry.group_key = ProfileGroupKey.CUSTOM
 
                     elif param_class_name == "CircleParams":
                         state.geometry.parameters = CircleParams(**loaded_values)
                         state.geometry.shape_type = CustomTunnelShape.CIRCLE
+                        state.geometry.custom_shape = CustomTunnelShape.CIRCLE
+                        state.geometry.group_key = ProfileGroupKey.CUSTOM
 
                     elif param_class_name == "PredefinedParams":
                         state.geometry.parameters = PredefinedParams(**loaded_values)
                         # Correctly map to PREDEFINED enum
                         state.geometry.shape_type = None
+                        state.geometry.custom_shape = None
+                        state.geometry.group_key = grp_geo.attrs.get("group_key", ProfileGroupKey.VL5_ROAD)
+
 
                 # --- LOAD ANALYSIS SETTINGS ---
                 if "analysis_settings" in f:
