@@ -274,6 +274,7 @@ class Mesh:
 
 
         gmsh.finalize()
+
         return cls(
             nodes=nodes,
             elements=surface_elements,

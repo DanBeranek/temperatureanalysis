@@ -14,12 +14,22 @@ Classes:
     GeometryData: Data class for shape parameters.
     ProjectState: The main container class.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Union
+import logging
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+
+import numpy as np
 
 from temperatureanalysis.controller.mesher import MeshStats
 from temperatureanalysis.model.profiles import ProfileGroupKey, CustomTunnelShape, TunnelProfile, ALL_PROFILES, \
     TunnelOutline, OutlineShape, TunnelCategory
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -139,17 +149,25 @@ class ProjectState:
     Singleton-like class that holds the entire state of the open project.
     Pass this instance to your Controllers and Views.
     """
-    filepath: Optional[str] = None
     project_name: str = "Untitled Project"
+    filepath: Optional[str] = None
+
     geometry: GeometryData = field(default_factory=GeometryData)
-    mesh_path: Optional[str] = None
     materials: Dict[str, Any] = field(default_factory=dict)
+
+    mesh_path: Optional[str] = None
+
+    results: list[npt.NDArray] = field(default_factory=list)
+    time_steps: list[float] = field(default_factory=list)
+
 
     def reset(self) -> None:
         """Clear all data for a new project"""
-        self.filepath: Optional[str] = None
         self.project_name = "Untitled Project"
+        self.filepath = None
         self.geometry = GeometryData()
-        self.mesh_path = None
         self.materials = {}
-        print("Project state reset.")
+        self.mesh_path = None
+        self.results = []
+        self.time_steps = []
+        logger.info("Project state has been reset.")

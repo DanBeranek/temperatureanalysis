@@ -1,15 +1,109 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSlider
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar
+)
+from PySide6.QtCore import Qt, Signal
+import logging
+from temperatureanalysis.model.state import ProjectState
+from temperatureanalysis.controller.workers import SolverWorker, prepare_simulation_model
 
+
+logger = logging.getLogger(__name__)
 
 class ResultsControlPanel(QWidget):
-    def __init__(self, project_state):
+    # Signal: (mesh_path, temperature_array)
+    update_view_requested = Signal(str, object)
+
+    def __init__(self, project_state: ProjectState) -> None:
         super().__init__()
+        self.project = project_state
+        self.solver_worker = None
+
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Analýza Výsledků"))
-        layout.addWidget(QLabel("Časový krok:"))
 
-        slider = QSlider(Qt.Horizontal)
-        layout.addWidget(slider)
+        # --- Analysis ---
+        grp_calc = QGroupBox("Výpočet")
+        l_calc = QVBoxLayout(grp_calc)
 
+        self.btn_run = QPushButton("Spustit Analýzu")
+        self.btn_run.setMinimumHeight(40)
+        self.btn_run.clicked.connect(self.on_run_clicked)
+        l_calc.addWidget(self.btn_run)
+
+        self.progress = QProgressBar()
+        self.progress.setVisible(False)
+        l_calc.addWidget(self.progress)
+        layout.addWidget(grp_calc)
+
+        # --- Viz ---
+        grp_vis = QGroupBox("Prohlížeč")
+        l_vis = QVBoxLayout(grp_vis)
+
+        self.lbl_time = QLabel("Čas: -")
+        l_vis.addWidget(self.lbl_time)
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setEnabled(False)
+        self.slider.valueChanged.connect(self.on_slider_changed)
+        l_vis.addWidget(self.slider)
+
+        layout.addWidget(grp_vis)
         layout.addStretch()
+
+    def on_run_clicked(self) -> None:
+        if not self.project.mesh_path:
+            QMessageBox.warning(self, "Chyba", "Nejdříve musíte vygenerovat síť.")
+            return
+
+        self.btn_run.setEnabled(False)
+        self.progress.setVisible(True)
+        self.progress.setRange(0, 0)  # Indeterminate mode while loading
+        self.lbl_time.setText("Načítání modelu...")
+        self.repaint()  # Force redraw
+
+        try:
+            # 1. LOAD MODEL IN MAIN THREAD (Fixes signal error)
+            # This might freeze UI for a second, but it's safe.
+            model = prepare_simulation_model(self.project)
+
+            # 2. START SOLVER IN WORKER THREAD
+            self.progress.setRange(0, 100)  # Switch to percentage
+            self.solver_worker = SolverWorker(model, self.project)
+            self.solver_worker.progress_updated.connect(self.on_progress)
+            self.solver_worker.finished.connect(self.on_finished)
+            self.solver_worker.error_occurred.connect(self.on_error)
+            self.solver_worker.start()
+
+        except Exception as e:
+            logger.exception("Model preparation failed")
+            self.on_error(str(e))
+
+    def on_progress(self, percent: int, msg: str) -> None:
+        self.progress.setValue(percent)
+        self.lbl_time.setText(msg)
+
+    def on_finished(self) -> None:
+        self.btn_run.setEnabled(True)
+        self.progress.setVisible(False)
+        self.lbl_time.setText("Výpočet dokončen.")
+
+        count = len(self.project.results)
+        if count > 0:
+            self.slider.setEnabled(True)
+            self.slider.setRange(0, count - 1)
+            self.slider.setValue(count - 1)
+
+    def on_error(self, msg: str) -> None:
+        self.btn_run.setEnabled(True)
+        self.progress.setVisible(False)
+        QMessageBox.critical(self, "Chyba Výpočtu", msg)
+
+    def on_slider_changed(self, index: int) -> None:
+        if not self.project.results or not self.project.mesh_path: return
+
+        temp_data = self.project.results[index]
+        time_val = self.project.time_steps[index]
+
+        self.lbl_time.setText(f"Čas: {time_val:.1f} min")
+
+        # Emit signal to MainWindow
+        self.update_view_requested.emit(self.project.mesh_path, temp_data)

@@ -112,6 +112,9 @@ class MainWindow(QMainWindow):
         # 2. Mesh Generated -> Update View + Set Modified
         self.mesh_panel.mesh_generated.connect(self.on_mesh_generated)
 
+        # 3. Results Updates
+        self.results_panel.update_view_requested.connect(self.on_results_update)
+
         # --- ACTIONS & MENUS ---
         self._create_actions()
         self._create_menus()
@@ -187,6 +190,10 @@ class MainWindow(QMainWindow):
         """Slot called when MESH is generated."""
         self.update_visualization(reset_camera=False)
         self.set_modified(True)
+
+    def on_results_update(self, mesh_path: str, scalars) -> None:
+        """Called when user scrubs the time slider."""
+        self.visualizer.show_results(mesh_path, scalars)
 
     # --- FILE SLOTS ---
 

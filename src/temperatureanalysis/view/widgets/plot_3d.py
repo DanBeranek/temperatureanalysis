@@ -115,6 +115,53 @@ class PyVistaWidget(QWidget):
 
         # Update grid based on the final camera position
 
+    def show_results(self, mesh_path: str, scalars: np.ndarray,
+                     scalar_name: str = "Temperature [°C]") -> None:
+        """
+        Displays a scalar field on the mesh.
+        """
+        # Don't clear everything, just update the mesh layer
+        # But for safety in this version, let's clear actors.
+        self.plotter.clear()
+
+        try:
+            mesh = pv.read(mesh_path)
+
+            # Ensure scalars match node count
+            if len(scalars) != mesh.n_points:
+                print(f"Error: Result size {len(scalars)} != Mesh points {mesh.n_points}")
+                return
+
+            # Assign scalars
+            mesh.point_data[scalar_name] = scalars
+
+            # Plot with Colormap
+            self.plotter.add_mesh(
+                mesh,
+                scalars=scalar_name,
+                cmap="inferno",  # Fire-like colormap
+                show_edges=False,
+                label="Result Field"
+            )
+
+            # Add Legend
+            self.plotter.add_scalar_bar(
+                title=scalar_name,
+                label_font_size=12,
+                title_font_size=14,
+                position_x=0.85,
+                position_y=0.1,
+                height=0.5,
+                width=0.1
+            )
+
+            # Re-add grid
+            self._update_grid_from_camera()
+            # self.plotter.reset_camera() # Optional: Don't reset if animating
+
+        except Exception as e:
+            print(f"Failed to render results: {e}")
+
     def _render_geometry_layer(self, geometry_data: GeometryData) -> None:
         """
         Main entry point triggered by Architecture (Signals).
