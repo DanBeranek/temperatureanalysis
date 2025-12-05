@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
 
         # 3. Results Updates
         self.results_panel.update_view_requested.connect(self.on_results_update)
+        self.results_panel.results_generated.connect(self.on_results_generated)
 
         # --- ACTIONS & MENUS ---
         self._create_actions()
@@ -164,9 +165,10 @@ class MainWindow(QMainWindow):
     def update_window_title(self) -> None:
         """Updates the window title based on filename and dirty state."""
         filename = self.project.filepath if self.project.filepath else "Untitled"
-        title = f"{VISIBLE_APP_NAME} - [{os.path.basename(filename)}]"
+        title = f"{VISIBLE_APP_NAME} - [{os.path.basename(filename)}"
         if self.is_modified:
             title += "*"
+        title += "]"
         self.setWindowTitle(title)
 
     def set_modified(self, modified: bool) -> None:
@@ -190,6 +192,10 @@ class MainWindow(QMainWindow):
     def on_mesh_generated(self, filepath: str) -> None:
         """Slot called when MESH is generated."""
         self.update_visualization(reset_camera=False)
+        self.set_modified(True)
+
+    def on_results_generated(self) -> None:
+        """Slot called when RESULTS are generated."""
         self.set_modified(True)
 
     def on_results_update(self, mesh_path: str, scalars, regrid: bool = True) -> None:

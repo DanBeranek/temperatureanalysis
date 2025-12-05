@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class ResultsControlPanel(QWidget):
     # Signal: (mesh_path, temperature_array)
     update_view_requested = Signal(str, object, bool)
+    results_generated = Signal()
 
     def __init__(self, project_state: ProjectState) -> None:
         super().__init__()
@@ -181,6 +182,9 @@ class ResultsControlPanel(QWidget):
             self.slider.setRange(0, count - 1)
             self.slider.setValue(count - 1)
             self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], True)
+
+            # Notify that results are ready
+            self.results_generated.emit()
 
     def on_error(self, msg: str) -> None:
         self.btn_run.setEnabled(True)
