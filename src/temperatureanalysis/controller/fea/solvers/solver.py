@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
 import numpy as np
@@ -23,6 +24,11 @@ except ImportError:
     print("Using scipy.sparse.linalg.spsolve as sparse linear solver.")
 
 # spsolve = sp.sparse.linalg.spsolve
+
+@dataclass
+class FEAResult:
+    time_steps: list[float] = field(default_factory=list)
+    temperatures: list[npt.NDArray[np.float64]] = field(default_factory=list)
 
 class Solver:
     """
@@ -274,7 +280,7 @@ class Solver:
         initial_temperature: float = 20 + 273.15,
         tolerance: float = 1e-2,
         verbose: bool = False
-    ) -> None:
+    ) -> FEAResult:
         # Time step parameters
         current_time = 0.0
         step = 0
@@ -292,7 +298,10 @@ class Solver:
 
         self.model.t_global = temp_old.copy()
 
-        results = [temp_old.copy()]
+        # Initialize results storage
+        results = FEAResult()
+        results.time_steps.append(current_time)
+        results.temperatures.append(temp_old.copy())
 
         # Main time loop
         while current_time < total_time:
@@ -352,7 +361,8 @@ class Solver:
                     raise RuntimeError(f"Newton-Raphson did not converge after {iteration} iterations at time {current_time:.2f} s.")
 
             # Save converged temperature
-            results.append(temp_new.copy())
+            results.time_steps.append(current_time)
+            results.temperatures.append(temp_new.copy())
             temp_old = temp_new
 
             self.model.t_global = temp_new.copy()
@@ -373,6 +383,7 @@ class Solver:
             # print(f"T: [{vector}]")
             # self.model.plot_temperature_distribution(time=current_time)
         # self.model.plot_temperature_distribution(time=current_time)
+        return results
 
 
 
