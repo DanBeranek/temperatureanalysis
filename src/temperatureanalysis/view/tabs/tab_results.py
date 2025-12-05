@@ -1,7 +1,8 @@
 import datetime
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar
+    QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar, QFormLayout,
+    QDoubleSpinBox
 )
 from PySide6.QtCore import Qt, Signal
 import logging
@@ -22,11 +23,33 @@ class ResultsControlPanel(QWidget):
 
         layout = QVBoxLayout(self)
 
+        # --- Simulation Settings ---
+        grp_settings = QGroupBox("Nastavení výpočtu")
+        form_settings = QFormLayout(grp_settings)
+
+        self.spin_total_time = QDoubleSpinBox()
+        self.spin_total_time.setDecimals(0)
+        self.spin_total_time.setRange(1.0, 180.0)  # Up to 3 hours
+        self.spin_total_time.setValue(self.project.total_time_minutes)
+        self.spin_total_time.setSuffix(" min")
+        self.spin_total_time.valueChanged.connect(self.on_params_changed)
+        form_settings.addRow("Celkový čas:", self.spin_total_time)
+
+        self.spin_dt = QDoubleSpinBox()
+        self.spin_dt.setDecimals(0)
+        self.spin_dt.setRange(1.0, 60.0)  # Up to 1 min step
+        self.spin_dt.setValue(self.project.time_step)
+        self.spin_dt.setSuffix(" s")
+        self.spin_dt.valueChanged.connect(self.on_params_changed)
+        form_settings.addRow("Časový krok:", self.spin_dt)
+
+        layout.addWidget(grp_settings)
+
         # --- Analysis ---
         grp_calc = QGroupBox("Výpočet")
         l_calc = QVBoxLayout(grp_calc)
 
-        self.btn_run = QPushButton("Spustit Analýzu")
+        self.btn_run = QPushButton("Spustit výpočet")
         self.btn_run.setMinimumHeight(40)
         self.btn_run.clicked.connect(self.on_run_clicked)
         l_calc.addWidget(self.btn_run)
@@ -50,6 +73,10 @@ class ResultsControlPanel(QWidget):
 
         layout.addWidget(grp_vis)
         layout.addStretch()
+
+    def on_params_changed(self) -> None:
+        self.project.total_time_minutes = self.spin_total_time.value()
+        self.project.time_step = self.spin_dt.value()
 
     def on_run_clicked(self) -> None:
         if not self.project.mesh_path:

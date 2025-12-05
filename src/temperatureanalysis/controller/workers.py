@@ -82,9 +82,8 @@ class SolverWorker(QThread):
             solver = Solver(model=self.model)
 
             # 5. Run Simulation
-            tot_time = 60.0 * 10  # total simulation time in seconds
-            # tot_time = 60.0  # total simulation time in seconds
-            dt = 30.0  # time step in seconds
+            tot_time = self.project.total_time_minutes * 60.0  # total simulation time in seconds
+            dt = self.project.time_step  # time step in seconds
             self.progress_updated.emit(10, "Running FEA...")
 
             # NOTE: This call blocks until completion

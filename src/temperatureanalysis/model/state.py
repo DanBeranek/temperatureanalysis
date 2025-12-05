@@ -155,6 +155,9 @@ class ProjectState:
     geometry: GeometryData = field(default_factory=GeometryData)
     materials: Dict[str, Any] = field(default_factory=dict)
 
+    time_step: float = 30.0
+    total_time_minutes: float = 180.0
+
     mesh_path: Optional[str] = None
 
     results: list[npt.NDArray] = field(default_factory=list)
@@ -170,4 +173,6 @@ class ProjectState:
         self.mesh_path = None
         self.results = []
         self.time_steps = []
+        self.time_step = 30.0
+        self.total_time_minutes = 180.0
         logger.info("Project state has been reset.")
