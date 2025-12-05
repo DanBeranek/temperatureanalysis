@@ -12,6 +12,9 @@ Why is this file needed?
 """
 from __future__ import annotations
 
+import tempfile
+import uuid
+
 import gmsh
 import os
 import logging
@@ -194,14 +197,17 @@ class GmshMesher:
             _, elem_tags, _ = gmsh.model.mesh.get_elements(dim=2)
             num_elements = len(elem_tags[0])
 
-            # 7. Export
-            if project.filepath:
-                # If project is "C:/Data/Tunnel.h5", output becomes "C:/Data/Tunnel-mesh.msh"
-                base_name = os.path.splitext(os.path.basename(project.filepath))[0]
-                output_filename = f"{base_name}-mesh.msh"
-            else:
-                # Fallback for unsaved project
-                output_filename = "tunel-mesh.msh"
+            # --- 7. Export to TEMP File (Hidden) ---
+            temp_dir = tempfile.gettempdir()
+            unique_name = f"mesh_{uuid.uuid4().hex}.msh"
+            output_filename = os.path.join(temp_dir, unique_name)
+
+            gmsh.write(output_filename)
+            logger.info(f"Mesh generated at temp location: {output_filename}")
+
+            # Register for cleanup (Delayed import to avoid circular dependency at module level)
+            from temperatureanalysis.model.io import IOManager
+            IOManager._TEMP_FILES.append(output_filename)
 
             gmsh.write(output_filename)
 
