@@ -115,8 +115,13 @@ class PyVistaWidget(QWidget):
 
         # Update grid based on the final camera position
 
-    def show_results(self, mesh_path: str, scalars: np.ndarray,
-                     scalar_name: str = "Temperature [°C]") -> None:
+    def show_results(
+        self,
+        mesh_path: str,
+        scalars: np.ndarray,
+        draw_isotherm: bool = True,
+        draw_temperature: bool = True,
+    ) -> None:
         """
         Displays a scalar field on the mesh.
         """
@@ -133,27 +138,62 @@ class PyVistaWidget(QWidget):
                 return
 
             # Assign scalars
-            mesh.point_data[scalar_name] = scalars
+            mesh.point_data["temperature"] = scalars - 273.15  # Convert from Kelvin to Celsius
 
-            # Plot with Colormap
+            if draw_temperature:
+                scalars = "temperature"
+            else:
+                scalars = None
+
             self.plotter.add_mesh(
                 mesh,
-                scalars=scalar_name,
-                cmap="inferno",  # Fire-like colormap
-                show_edges=False,
-                label="Result Field"
+                scalars=scalars,
+                cmap="jet",
+                # show_edges=draw_mesh,
+                line_width=0.01,
+                edge_color='grey',
+                scalar_bar_args={
+                    "title": "Teplota (°C)",
+                    "vertical": True,
+                    "fmt": "%.0f",
+                    "position_x": 0.85,
+                    "position_y": 0.5,
+                },
+                interpolate_before_map=True,
             )
 
-            # Add Legend
-            self.plotter.add_scalar_bar(
-                title=scalar_name,
-                label_font_size=12,
-                title_font_size=14,
-                position_x=0.85,
-                position_y=0.1,
-                height=0.5,
-                width=0.1
-            )
+            if draw_isotherm and draw_temperature:
+                # Generate contour lines at default levels
+                levels = [500]
+                isolines = mesh.contour(isosurfaces=levels, scalars="temperature")
+
+                # Add them as black isolines
+                self.plotter.add_mesh(
+                    isolines,
+                    color="black",
+                    line_width=1.5,
+                    show_scalar_bar=False,
+                    render_lines_as_tubes=True  # nicer visibility
+                )
+
+                # Add labels manually
+                for value in levels:
+                    # Extract only the polyline(s) for this isovalue
+                    iso = mesh.contour(isosurfaces=[value], scalars="temperature")
+
+                    # Take the first point of the isoline
+                    if iso.n_points > 0:
+                        idx = iso.n_points // 2
+                        point = iso.points[idx]
+
+                        self.plotter.add_point_labels(
+                            point,
+                            [f"{value}°C"],
+                            font_size=12,
+                            text_color="black",
+                            fill_shape=True,
+                            always_visible=True,
+                        )
 
             # Re-add grid
             self._update_grid_from_camera()

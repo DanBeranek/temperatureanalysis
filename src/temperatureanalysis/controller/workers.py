@@ -82,30 +82,26 @@ class SolverWorker(QThread):
             solver = Solver(model=self.model)
 
             # 5. Run Simulation
-            tot_time = 60.0 * 180  # total simulation time in seconds
-            tot_time = 60.0  # total simulation time in seconds
+            tot_time = 60.0 * 10  # total simulation time in seconds
+            # tot_time = 60.0  # total simulation time in seconds
             dt = 30.0  # time step in seconds
             self.progress_updated.emit(10, "Running FEA...")
 
             # NOTE: This call blocks until completion
             # To get live progress, Solver.solve needs to emit events or accept a callback
-            solver.solve(dt=dt, total_time=tot_time)
+            result = solver.solve(dt=dt, total_time=tot_time)
 
             self.progress_updated.emit(90, "Processing results...")
 
-            self._extract_results()
+            logger.info("Extracting results from the model...")
+            self.project.results = result.temperatures
+            self.project.time_steps = result.time_steps
 
             self.finished.emit()
 
         except Exception as e:
             logger.error(f"Error in SolverWorker: {e}")
             self.error_occurred.emit(str(e))
-
-    def _extract_results(self):
-        # Placeholder for result extraction logic
-        # e.g., extracting temperature at specific nodes, saving output files, etc.
-        logger.info("Extracting results from the model...")
-        time.sleep(1)  # Simulate some processing time
 
     def stop(self) -> None:
         self.is_running = False

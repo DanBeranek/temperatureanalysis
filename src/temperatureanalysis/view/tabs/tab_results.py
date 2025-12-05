@@ -103,7 +103,7 @@ class ResultsControlPanel(QWidget):
         temp_data = self.project.results[index]
         time_val = self.project.time_steps[index]
 
-        self.lbl_time.setText(f"Čas: {time_val:.1f} min")
+        self.lbl_time.setText(f"Čas: {time_val:.1f} s")
 
         # Emit signal to MainWindow
         self.update_view_requested.emit(self.project.mesh_path, temp_data)
