@@ -1,3 +1,5 @@
+import datetime
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar
 )
@@ -103,7 +105,7 @@ class ResultsControlPanel(QWidget):
         temp_data = self.project.results[index]
         time_val = self.project.time_steps[index]
 
-        self.lbl_time.setText(f"Čas: {time_val:.1f} s")
+        self.lbl_time.setText(f"Čas: {str(datetime.timedelta(seconds=time_val))}")
 
         # Emit signal to MainWindow
         self.update_view_requested.emit(self.project.mesh_path, temp_data)
