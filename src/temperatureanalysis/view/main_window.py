@@ -10,6 +10,7 @@ Why is this file needed?
    controllers.
 """
 import os
+import numpy as np
 
 from typing import Optional
 from PySide6.QtWidgets import (
@@ -193,7 +194,10 @@ class MainWindow(QMainWindow):
 
     def on_results_update(self, mesh_path: str, scalars) -> None:
         """Called when user scrubs the time slider."""
-        self.visualizer.show_results(mesh_path, scalars)
+        celsius_data = np.asarray(self.project.results) - 273.15
+        v_min = np.min(celsius_data)
+        v_max = np.max(celsius_data)
+        self.visualizer.show_results(mesh_path, scalars, v_min=v_min, v_max=v_max)
 
     # --- FILE SLOTS ---
 
