@@ -33,7 +33,7 @@ class MeshControlPanel(QWidget):
         self.lc_inner_spin = QDoubleSpinBox()
         self.lc_inner_spin.setRange(0.01, 2.0)
         self.lc_inner_spin.setSingleStep(0.01)
-        self.lc_inner_spin.setValue(0.1)  # Default fine
+        self.lc_inner_spin.setValue(0.03)  # Default fine
         self.lc_inner_spin.setSuffix(" m")
         self.lc_inner_spin.valueChanged.connect(self.on_inner_spin_changed)
         form.addRow("Velikost elementu (Vnitřní):", self.lc_inner_spin)
