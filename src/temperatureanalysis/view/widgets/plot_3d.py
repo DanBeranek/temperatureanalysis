@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Optional, List, Dict, Callable, Tuple, Union
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ from temperatureanalysis.model.profiles import (
 )
 from temperatureanalysis.model.geometry_primitives import Point, Line, Arc, BoundaryLoop
 
+logger = logging.getLogger(__name__)
 
 # --- DATA CLASSES FOR VISUALIZATION ---
 
@@ -89,6 +91,7 @@ class PyVistaWidget(QWidget):
         1. Geometry (Base)
         2. Mesh (Overlay)
         """
+        logger.info("Updating 3D preview scene.")
         # 1. Clear everything
         self.plotter.clear()
         self._preview_domain_actors.clear()
@@ -99,6 +102,7 @@ class PyVistaWidget(QWidget):
         self._render_geometry_layer(project_state.geometry)
 
         # 3. Render Mesh Layer (Overlay)
+        logger.debug(f"Trying to load mesh layer from: {project_state.mesh_path}")
         if project_state.mesh_path and os.path.exists(project_state.mesh_path):
             self._render_mesh_layer(project_state.mesh_path)
 
@@ -117,6 +121,7 @@ class PyVistaWidget(QWidget):
         Converts ProjectState geometry -> Visualization Domains -> Renders.
         """
         # 1. Generate the BoundaryLoop from Model
+        logger.info("Rendering geometry layer.")
         profile = geometry_data.get_resolved_profile()
         if not profile:
             self._clear_preview()
@@ -150,6 +155,7 @@ class PyVistaWidget(QWidget):
 
     def _render_mesh_layer(self, filepath: str) -> None:
         """Loads .vtu/.msh and adds it to the existing scene."""
+        logger.info(f"Loading mesh for preview: {filepath}")
         try:
             mesh = pv.read(filepath)
 

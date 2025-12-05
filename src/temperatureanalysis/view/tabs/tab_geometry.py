@@ -179,7 +179,6 @@ class StandardProfileWidget(QWidget):
         self.sub_combo.blockSignals(True)
         self.sub_combo.clear()
         self.sub_combo.addItems(profile_list)
-        self.sub_combo.blockSignals(False)
 
         # If current state matches a profile in this list, select it
         current = ""
@@ -191,6 +190,8 @@ class StandardProfileWidget(QWidget):
         elif self.sub_combo.count() > 0:
             self.sub_combo.setCurrentIndex(0)
             self.on_profile_changed(self.sub_combo.currentText())
+
+        self.sub_combo.blockSignals(False)
 
     def on_profile_changed(self, text: str) -> None:
         if not text: return

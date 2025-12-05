@@ -265,3 +265,35 @@ class MainWindow(QMainWindow):
     def update_visualization(self, reset_camera:bool = True) -> None:
         # Call the new unified method
         self.visualizer.update_scene(project_state=self.project, reset_camera=reset_camera)
+
+    def closeEvent(self, event, /) -> None:
+        """Handle window close event to prompt for saving if modified."""
+        # 1. Ask to save if modified
+        if self.is_modified:
+            reply = QMessageBox.question(
+                self,
+                "Uložit změny?",
+                "Projekt byl změněn. Chcete uložit změny před ukončením?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+            )
+
+            if reply == QMessageBox.Save:
+                self.on_file_save()
+                # If save failed (user cancelled file dialog), we abort the exit
+                if not self.project.filepath:
+                    event.ignore()  # Don't close window
+                    return  # Stop here (keep app running)
+            elif reply == QMessageBox.Cancel:
+                event.ignore()  # Don't close window
+                return  # Stop here (keep app running)
+
+        # If we get here, the user wants to close (Discard or Save Success)
+
+        # Clean up Temp Files if any
+        IOManager.cleanup_temp_files()
+
+        # 3. Close the PyVista plotter safely
+        if self.visualizer and self.visualizer.plotter:
+            self.visualizer.plotter.close()
+
+        event.accept() # Actually close the window

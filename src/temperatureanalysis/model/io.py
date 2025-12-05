@@ -2,13 +2,16 @@
 Input/Output Manager (HDF5)
 Handles saving and loading the ProjectState to .h5 files.
 """
+import logging
 import os
 import tempfile
+import uuid
 
 import h5py
 import numpy as np
 from typing import Optional
 from dataclasses import asdict
+import logging
 from importlib.metadata import version, PackageNotFoundError
 
 from temperatureanalysis.model.state import (
@@ -17,14 +20,34 @@ from temperatureanalysis.model.state import (
 # Import TunnelShape to handle Enum conversion
 from temperatureanalysis.model.profiles import CustomTunnelShape
 
+# Get module logger
+logger = logging.getLogger(__name__)
+
 try:
     APP_VERSION = version("temperatureanalysis")
 except PackageNotFoundError:
     APP_VERSION = "0.0.0-dev"
 
 class IOManager:
+    # Track temporary files created during load
+    _TEMP_FILES: list[str] = []
+
+    @staticmethod
+    def cleanup_temp_files() -> None:
+        """Deletes all temporary files created during the session."""
+        logger.info(f"Cleaning up {len(IOManager._TEMP_FILES)} temporary mesh files.")
+        for temp_path in IOManager._TEMP_FILES:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    logger.debug(f"Deleted temp file: {temp_path}")
+            except Exception as e:
+                logger.warning(f"Could not delete temp file '{temp_path}': {e}")
+        IOManager._TEMP_FILES.clear()
+
     @staticmethod
     def save_project(state: ProjectState, filepath: str) -> None:
+        logger.info(f"Saving project to: {filepath}")
         try:
             with h5py.File(filepath, "w") as f:
                 f.attrs["version"] = APP_VERSION
@@ -49,18 +72,22 @@ class IOManager:
 
                 # 3. Save Mesh as binary blob
                 if state.mesh_path and os.path.exists(state.mesh_path):
+                    logger.debug(f"Saving mesh binary from {state.mesh_path}")
                     IOManager._save_mesh_binary(f, state.mesh_path)
 
-            print(f"Project saved to: {filepath}")
+            logger.info(f"Project saved to: {filepath}")
 
         except Exception as e:
-            print(f"Failed to save project: {e}")
+            logger.exception(f"Failed to save project: {e}")
             raise e
 
     @staticmethod
     def load_project(state: ProjectState, filepath: str) -> None:
+        logger.info(f"Loading project from: {filepath}")
         if not h5py.is_hdf5(filepath):
-            raise ValueError("File is not a valid HDF5 file.")
+            msg = f"File '{filepath}' is not a valid HDF5 file."
+            logger.error(msg)
+            raise ValueError(msg)
 
         try:
             with h5py.File(filepath, "r") as f:
@@ -105,13 +132,14 @@ class IOManager:
                 mesh_temp_path = IOManager._load_mesh_binary(f)
                 if mesh_temp_path:
                     state.mesh_path = mesh_temp_path
+                    logger.debug(f"Mesh successfully loaded from temp file: {mesh_temp_path}")
+                else:
+                    logger.warning(f"No mesh loaded.")
 
-                state.results_file = filepath
-
-            print(f"Project loaded from: {filepath}")
+            logger.info(f"Project loaded from: {filepath}")
 
         except Exception as e:
-            print(f"Failed to load project: {e}")
+            logger.exception(f"Failed to load project: {e}")
             raise e
 
     # --- BINARY MESH HELPERS ---
@@ -132,15 +160,16 @@ class IOManager:
             ext = os.path.splitext(mesh_path)[1]
             h5_file["mesh_file_blob"].attrs["extension"] = ext
 
-            print(f"Mesh saved ({len(data_np)} bytes).")
+            logger.info(f"Mesh saved ({len(data_np)} bytes).")
 
         except Exception as e:
-            print(f"Warning: Could not save mesh binary: {e}")
+            logger.exception(f"Warning: Could not save mesh binary: {e}")
 
     @staticmethod
     def _load_mesh_binary(h5_file: h5py.File) -> Optional[str]:
         """Extracts binary blob to temp file."""
         if "mesh_file_blob" not in h5_file:
+            logger.debug(f"No mesh binary found in HDF5.")
             return None
 
         try:
@@ -149,15 +178,18 @@ class IOManager:
             ext = dset.attrs.get("extension", ".msh")
 
             # Create temp file
+            unique_name = f"mesh_{uuid.uuid4().hex}{ext}"
             temp_dir = tempfile.gettempdir()
-            temp_path = os.path.join(temp_dir, f"loaded_project_mesh{ext}")
+            temp_path = os.path.join(temp_dir, unique_name)
 
             with open(temp_path, "wb") as mf:
+                logger.debug(f"Saving temporary mesh file to temp file: {temp_path}")
                 mf.write(binary_data)
 
-            print(f"Mesh extracted to: {temp_path}")
+            IOManager._TEMP_FILES.append(temp_path)
+
             return temp_path
 
         except Exception as e:
-            print(f"Warning: Could not load mesh binary: {e}")
+            logger.warning(f"Warning: Could not load mesh binary: {e}")
             return None

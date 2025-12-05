@@ -12,25 +12,32 @@ It acts as the "Dependency Injection" root. It:
 3. Passes the Model into the View so they can communicate.
 4. Prevents circular import errors by being the orchestrator.
 """
+import logging
 import sys
 from PySide6.QtWidgets import QApplication
+
+from temperatureanalysis.logging_config import setup_logging
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.view.main_window import MainWindow
 
 
 def main() -> None:
-    # 1. Create the Qt Application
+    # 1. Setup Logging (Console + Optional File)
+    # Use logging.DEBUG to see everything during development
+    setup_logging(level=logging.DEBUG, log_file="app_debug.log")
+
+    # 2. Create the Qt Application
     app = QApplication(sys.argv)
     app.setApplicationName("Tunel: Požár")
 
-    # 2. Initialize the Data Model
+    # 3. Initialize the Data Model
     project = ProjectState()
 
-    # 3. Initialize the Main Window, passing the model
+    # 4. Initialize the Main Window, passing the model
     window = MainWindow(project)
     window.show()
 
-    # 4. Start Event Loop
+    # 5. Start Event Loop
     sys.exit(app.exec())
 
 
