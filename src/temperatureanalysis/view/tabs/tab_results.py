@@ -138,6 +138,7 @@ class ResultsControlPanel(QWidget):
             self.slider.setEnabled(True)
             self.slider.setRange(0, count - 1)
             self.slider.setValue(count - 1)
+            self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], True)
 
     def on_error(self, msg: str) -> None:
         self.btn_run.setEnabled(True)

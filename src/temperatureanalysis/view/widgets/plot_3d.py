@@ -280,13 +280,17 @@ class PyVistaWidget(QWidget):
                             self._result_actors.append(lbl_actor)
                             # self._result_actors.append(point)
 
-            # Force redraw
+            # # Force redraw
             self.plotter.render()
 
             # Re-add grid
             if regrid:
+                if self._grid_minor_actor: self.plotter.remove_actor(self._grid_minor_actor)
+                if self._grid_major_actor: self.plotter.remove_actor(self._grid_major_actor)
+                for a in self._ruler_actors:
+                    self.plotter.renderer.RemoveActor2D(a)
+                self.plotter.reset_camera()
                 self._update_grid_from_camera()
-            # self.plotter.reset_camera() # Optional: Don't reset if animating
 
         except Exception as e:
             print(f"Failed to render results: {e}")
