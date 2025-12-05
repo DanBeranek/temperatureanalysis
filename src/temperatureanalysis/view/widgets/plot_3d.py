@@ -121,9 +121,19 @@ class PyVistaWidget(QWidget):
         scalars: np.ndarray,
         draw_isotherm: bool = True,
         draw_temperature: bool = True,
+        v_min: Optional[float] = None,
+        v_max: Optional[float] = None,
     ) -> None:
         """
         Displays a scalar field on the mesh.
+
+        Args:
+            mesh_path: Path to the .vtu/.msh file.
+            scalars: Numpy array of temperature values (assumed Kelvin).
+            draw_isotherm: Whether to draw contour lines.
+            draw_temperature: Whether to show the colored heat map.
+            v_min: Minimum value for the scalar bar (color map).
+            v_max: Maximum value for the scalar bar (color map).
         """
         # Don't clear everything, just update the mesh layer
         # But for safety in this version, let's clear actors.
@@ -138,7 +148,14 @@ class PyVistaWidget(QWidget):
                 return
 
             # Assign scalars
-            mesh.point_data["temperature"] = scalars - 273.15  # Convert from Kelvin to Celsius
+            celsius_data = scalars - 273.15  # Convert from Kelvin to Celsius
+            mesh.point_data["temperature"] = celsius_data  # Convert from Kelvin to Celsius
+
+            # Determine plot limits if not provided
+            if v_min is None:
+                v_min = np.nanmin(celsius_data)
+            if v_max is None:
+                v_max = np.nanmax(celsius_data)
 
             if draw_temperature:
                 scalars = "temperature"
@@ -149,6 +166,7 @@ class PyVistaWidget(QWidget):
                 mesh,
                 scalars=scalars,
                 cmap="jet",
+                clim=[v_min, v_max],
                 # show_edges=draw_mesh,
                 line_width=0.01,
                 edge_color='grey',
