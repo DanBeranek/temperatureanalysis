@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt
 
+from temperatureanalysis.model.io import IOManager
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.controller.mesher import GmshMesher
 
@@ -172,8 +173,7 @@ class MeshControlPanel(QWidget):
                 if not dest_path.endswith('.msh'):
                     dest_path += '.msh'
 
-                # Copy the temp file to destination
-                shutil.copy2(self.project.mesh_path, dest_path)
+                IOManager.export_mesh_file(self.project.mesh_path, dest_path)
                 QMessageBox.information(self, "Export", f"Síť byla úspěšně uložena do:\n{dest_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Chyba Exportu", f"Nepodařilo se uložit soubor:\n{str(e)}")

@@ -4,6 +4,7 @@ Handles saving and loading the ProjectState to .h5 files.
 """
 import logging
 import os
+import shutil
 import tempfile
 import uuid
 
@@ -13,6 +14,8 @@ from typing import Optional
 from dataclasses import asdict
 import logging
 from importlib.metadata import version, PackageNotFoundError
+
+import pyvista as pv
 
 from temperatureanalysis.model.state import (
     ProjectState, GeometryData, BoxParams, CircleParams, PredefinedParams
@@ -250,3 +253,81 @@ class IOManager:
         except Exception as e:
             logger.warning(f"Warning: Could not load mesh binary: {e}")
             return None
+
+    # ---- EXPORT HELPERS ----
+    @staticmethod
+    def export_mesh_file(source_path: str, dest_path: str) -> None:
+        """
+        Copies the temporary mesh file to a user-defined destination.
+        """
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f"Source mesh file not found: {source_path}")
+
+        try:
+            shutil.copy2(source_path, dest_path)
+            logger.info(f"Mesh exported to: {dest_path}")
+        except Exception as e:
+            logger.exception("Failed to export mesh file")
+            raise e
+
+    @staticmethod
+    def export_results_to_vtu(state: ProjectState, parent_dir: str) -> str:
+        """
+        Exports results as a series of .vtu files and a .pvd linker file.
+        Files are named: case_t{seconds}.vtu
+        """
+        if not state.mesh_path or not state.results:
+            raise ValueError("No mesh or results to export.")
+
+        output_dir = os.path.join(parent_dir, "results")
+        os.makedirs(output_dir, exist_ok=True)
+
+        logger.info(f"Exporting {len(state.results)} frames to {output_dir}...")
+
+        # Ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Load the base mesh once
+        base_mesh = pv.read(state.mesh_path)
+
+        # PVD Header
+        pvd_lines = [
+            '<?xml version="1.0"?>',
+            '<VTKFile type="Collection" version="0.1" byte_order="LittleEndian" compressor="vtkZLibDataCompressor">',
+            '  <Collection>'
+        ]
+
+        for i, (t_sec, temp_data) in enumerate(zip(state.time_steps, state.results)):
+            # Calculate seconds for filename
+            filename = f"case_t{t_sec:.0f}.vtu"
+            filepath = os.path.join(output_dir, filename)
+
+            # Create a copy (shallow copy is fine since we modify point data)
+            mesh_frame = base_mesh.copy()
+
+            # Convert to Celsius
+            celsius_data = temp_data - 273.15
+            mesh_frame.point_data["Temperature [C]"] = celsius_data
+            mesh_frame.point_data["Temperature [K]"] = temp_data
+
+            # Add Time field (useful for filters)
+            mesh_frame.field_data["TimeValue"] = [t_sec]
+
+            # Save VTU
+            mesh_frame.save(filepath)
+
+            # Add to PVD
+            pvd_lines.append(f'    <DataSet timestep="{t_sec}" group="" part="0" file="{filename}"/>')
+
+        # Close PVD
+        pvd_lines.append('  </Collection>')
+        pvd_lines.append('</VTKFile>')
+
+        # Save PVD
+        pvd_path = os.path.join(output_dir, "simulation_results.pvd")
+        with open(pvd_path, "w") as f:
+            f.write("\n".join(pvd_lines))
+
+        logger.info(f"Export complete. Load '{pvd_path}' in ParaView.")
+
+        return output_dir

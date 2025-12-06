@@ -153,6 +153,10 @@ class MainWindow(QMainWindow):
         self.act_export_mesh.triggered.connect(self.on_export_mesh_menu)
         self.act_export_mesh.setEnabled(False)  # Disabled until mesh exists
 
+        self.act_export_vtu = QAction("Exportovat do ParaView", self)
+        self.act_export_vtu.triggered.connect(self.on_export_to_paraview_menu)
+        self.act_export_vtu.setEnabled(False)  # Disabled until results exists
+
     def _create_menus(self) -> None:
         menu_bar = self.menuBar()
 
@@ -166,8 +170,9 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.act_exit)
 
-        mesh_menu = menu_bar.addMenu("&Výpočet")
-        mesh_menu.addAction(self.act_export_mesh)
+        analysis_menu = menu_bar.addMenu("&Výpočet")
+        analysis_menu.addAction(self.act_export_mesh)
+        analysis_menu.addAction(self.act_export_vtu)
 
     # --- HELPER METHODS ---
     def update_window_title(self) -> None:
@@ -192,6 +197,7 @@ class MainWindow(QMainWindow):
             self.project.mesh_path = None
             self.mesh_panel.reset_status()
             self.act_export_mesh.setEnabled(False)
+            self.act_export_vtu.setEnabled(False)
 
         # 2. Update UI State
         self.set_modified(True)
@@ -207,6 +213,7 @@ class MainWindow(QMainWindow):
     def on_results_generated(self) -> None:
         """Slot called when RESULTS are generated."""
         self.set_modified(True)
+        self.act_export_vtu.setEnabled(True)
 
     def on_results_update(self, mesh_path: str, scalars, regrid: bool = True) -> None:
         """Called when user scrubs the time slider."""
@@ -220,6 +227,11 @@ class MainWindow(QMainWindow):
         # Reuse logic from the panel
         self.mesh_panel.on_export_clicked()
 
+    def on_export_to_paraview_menu(self) -> None:
+        """Called when clicking Export to ParaView in the menu bar."""
+        # Reuse logic from the panel
+        self.results_panel.on_export_clicked()
+
     # --- FILE SLOTS ---
 
     def on_file_new(self) -> None:
@@ -229,6 +241,7 @@ class MainWindow(QMainWindow):
         # Reset dirty flag (updates title)
         self.set_modified(False)
         self.act_export_mesh.setEnabled(False)
+        self.act_export_vtu.setEnabled(False)
         # Ensure title says "Untitled" (in case it wasn't modified before)
         self.update_window_title()
 
@@ -306,6 +319,11 @@ class MainWindow(QMainWindow):
 
         # 3. Update Results (will trigger visualization if results exists)
         self.results_panel.load_from_state()
+
+        if self.project.results:
+            self.act_export_vtu.setEnabled(True)
+        else:
+            self.act_export_vtu.setEnabled(False)
 
         # 4. Update Visualization ONLY if there is no results
         # If results exist, results_panel.load_from_state() -> on_finished() -> emit(update_view)

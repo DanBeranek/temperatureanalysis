@@ -2,10 +2,12 @@ import datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar, QFormLayout,
-    QDoubleSpinBox, QStyle, QSpinBox
+    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 import logging
+
+from temperatureanalysis.model.io import IOManager
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.controller.workers import SolverWorker, prepare_simulation_model
 
@@ -64,6 +66,13 @@ class ResultsControlPanel(QWidget):
         self.progress.setVisible(False)
         self.progress.setTextVisible(True)
         l_calc.addWidget(self.progress)
+
+        # Export Results Button
+        self.btn_export = QPushButton("Exportovat do ParaView...")
+        self.btn_export.clicked.connect(self.on_export_clicked)
+        self.btn_export.setEnabled(False)  # Disabled until results exist
+        l_calc.addWidget(self.btn_export)
+
         layout.addWidget(grp_calc)
 
         # --- Viz ---
@@ -136,6 +145,7 @@ class ResultsControlPanel(QWidget):
         else:
             self.slider.setEnabled(False)
             self.btn_play.setEnabled(False)
+            self.btn_export.setEnabled(False)
             self.lbl_time.setText("Čas: -")
 
     def on_run_clicked(self) -> None:
@@ -145,6 +155,7 @@ class ResultsControlPanel(QWidget):
 
         self.btn_run.setEnabled(False)
         self.btn_play.setEnabled(False)
+        self.btn_export.setEnabled(False)
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)  # Indeterminate mode while loading
         self.lbl_time.setText("Načítání modelu...")
@@ -180,6 +191,7 @@ class ResultsControlPanel(QWidget):
         if count > 0:
             self.slider.setEnabled(True)
             self.btn_play.setEnabled(True)
+            self.btn_export.setEnabled(True)
             self.slider.setRange(0, count - 1)
             self.slider.setValue(count - 1)
             self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], True)
@@ -191,6 +203,23 @@ class ResultsControlPanel(QWidget):
         self.btn_run.setEnabled(True)
         self.progress.setVisible(False)
         QMessageBox.critical(self, "Chyba Výpočtu", msg)
+
+    def on_export_clicked(self) -> None:
+        """Export result sequence."""
+        if not self.project.results:
+            return
+
+        dir_path = QFileDialog.getExistingDirectory(self, "Vybrat složku pro export")
+        if dir_path:
+            try:
+                self.lbl_time.setText("Exportuji data...")
+                self.repaint()
+                output_path = IOManager.export_results_to_vtu(self.project, dir_path)
+                self.lbl_time.setText("Export dokončen.")
+                QMessageBox.information(self, "Export",
+                                        f"Data uložena do:\n{output_path}\n\nOtevřete soubor .pvd v ParaView.")
+            except Exception as e:
+                QMessageBox.critical(self, "Chyba Exportu", str(e))
 
     def on_slider_changed(self, index: int) -> None:
         if not self.project.results or not self.project.mesh_path: return
