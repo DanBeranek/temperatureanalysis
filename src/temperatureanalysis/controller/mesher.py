@@ -152,7 +152,7 @@ class GmshMesher:
                 # Get thickness to scale the gradient field if needed
                 geo = project.geometry
                 thickness = getattr(geo.parameters, "thickness", 0.5)
-                field_limit = max([thickness / 3, 0.2])  # Avoid too small values
+                field_limit = max([thickness / 3, 0.3])  # Avoid too small values
                 # 1. Distance field: Calc distance from inner boundary
                 f_dist = gmsh.model.mesh.field.add("Distance")
                 gmsh.model.mesh.field.set_numbers(f_dist, "CurvesList", tags_inner)
@@ -168,10 +168,10 @@ class GmshMesher:
                 gmsh.model.mesh.field.set_number(f_thresh, "SizeMax", lc_max)
 
                 # Distance constraints
-                # Within 0.0m to 0.1m from inner boundary -> SizeMin
-                # From 0.1m to 0.3m -> Interpolate to SizeMax
-                # Beyond 0.3m -> SizeMax
-                gmsh.model.mesh.field.set_number(f_thresh, "DistMin", 0.1)
+                # Within 0.0m to 0.15m from inner boundary -> SizeMin
+                # From 0.15m to `field_lim` m -> Interpolate to SizeMax
+                # Beyond `field_lim` m -> SizeMax
+                gmsh.model.mesh.field.set_number(f_thresh, "DistMin", 0.15)
                 gmsh.model.mesh.field.set_number(f_thresh, "DistMax", field_limit)
 
                 # Apply as background field
