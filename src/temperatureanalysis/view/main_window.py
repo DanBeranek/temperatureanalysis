@@ -209,18 +209,20 @@ class MainWindow(QMainWindow):
         self.update_visualization(reset_camera=False)
         self.set_modified(True)
         self.act_export_mesh.setEnabled(True)
+        self.visualizer.set_mesh_visible(True)
 
     def on_results_generated(self) -> None:
         """Slot called when RESULTS are generated."""
         self.set_modified(True)
         self.act_export_vtu.setEnabled(True)
+        self.visualizer.set_results_visible(True, render=False)
 
-    def on_results_update(self, mesh_path: str, scalars, regrid: bool = True) -> None:
+    def on_results_update(self, mesh_path: str, scalars, reset_camera: bool = False) -> None:
         """Called when user scrubs the time slider."""
         celsius_data = np.asarray(self.project.results) - 273.15
         v_min = np.min(celsius_data)
         v_max = np.max(celsius_data)
-        self.visualizer.show_results(mesh_path, scalars, v_min=v_min, v_max=v_max, regrid=regrid)
+        self.visualizer.update_scene(self.project, scalars, v_min=v_min, v_max=v_max, reset_camera=reset_camera, levels=[500])
 
     def on_export_mesh_menu(self) -> None:
         """Called when clicking Export in the menu bar."""

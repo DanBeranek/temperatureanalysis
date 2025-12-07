@@ -60,7 +60,6 @@ def prepare_simulation_model(project: ProjectState) -> Model:
 class SolverWorker(QThread):
     # Signals to update the UI from the background
     progress_updated = Signal(int, str)  # e.g., (10, "Solving step 5/50...")
-    finished = Signal()
     error_occurred = Signal(str)
 
     def __init__(self, model: Model, project_state: ProjectState):
@@ -108,8 +107,6 @@ class SolverWorker(QThread):
             logger.info("Extracting results from the model...")
             self.project.results = result.temperatures
             self.project.time_steps = result.time_steps
-
-            self.finished.emit()
 
         except Exception as e:
             logger.error(f"Error in SolverWorker: {e}")

@@ -192,9 +192,11 @@ class ResultsControlPanel(QWidget):
             self.slider.setEnabled(True)
             self.btn_play.setEnabled(True)
             self.btn_export.setEnabled(True)
+            self.slider.blockSignals(True)
             self.slider.setRange(0, count - 1)
             self.slider.setValue(count - 1)
-            self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], True)
+            self.slider.blockSignals(False)
+            self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], False)
 
             # Notify that results are ready
             self.results_generated.emit()
