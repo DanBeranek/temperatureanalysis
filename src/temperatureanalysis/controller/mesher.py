@@ -231,7 +231,7 @@ class GmshMesher:
             self._initialized = False
 
     @staticmethod
-    def _get_boundary_loop(project: ProjectState) -> Optional[BoundaryLoop]:
+    def _get_boundary_loop(project: ProjectState, assume_symmetric: bool = True) -> Optional[BoundaryLoop]:
         """
         Returns the boundary loop from the project geometry state.
         """
@@ -243,6 +243,6 @@ class GmshMesher:
             return None
 
         # Apply thickness
-        thickness = getattr(geo.parameters, "thickness", 20)
+        thickness = getattr(geo.parameters, "thickness", 0.5)
 
-        return profile.get_combined_loop(user_thickness=thickness)
+        return profile.get_combined_loop(user_thickness=thickness, assume_symmetric=assume_symmetric)

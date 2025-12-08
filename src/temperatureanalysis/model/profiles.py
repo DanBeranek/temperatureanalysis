@@ -54,26 +54,26 @@ class TunnelOutline:
     floor_height: float
     angle: Optional[float] = None
 
-    def get_primitives(self, offset: float = 0.0) -> List[GeometricEntity]:
+    def get_primitives(self, offset: float = 0.0, assume_symmetric: bool = False) -> List[GeometricEntity]:
         """
         Generate a list of Arcs/Lines for this specific boundary (CCW direction).
         Always results in an Open Arch (C-shape).
         """
         match self.shape:
             case OutlineShape.CIRCLE:
-                return self._generate_arc(offset=offset)
+                return self._generate_arc(offset=offset, assume_symmetric=assume_symmetric)
             case OutlineShape.THREE_CENTRE:
-                return self._generate_three_centre(offset=offset)
+                return self._generate_three_centre(offset=offset, assume_symmetric=assume_symmetric)
             case OutlineShape.FIVE_CENTRE:
-                return self._generate_five_centre(offset=offset)
+                return self._generate_five_centre(offset=offset, assume_symmetric=assume_symmetric)
             case OutlineShape.BOX:
-                return self._generate_box(offset=offset)
+                return self._generate_box(offset=offset, assume_symmetric=assume_symmetric)
             case OutlineShape.D_SEGMENTAL:
-                return self._generate_d_segments(offset=offset)
+                return self._generate_d_segments(offset=offset, assume_symmetric=assume_symmetric)
             case _:
                 return []
 
-    def _generate_arc(self, offset: float) -> List[GeometricEntity]:
+    def _generate_arc(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
         r = self.dimensions[0] + offset
         p_center = Point(self.center_first[0], self.center_first[1])
         circle = Circle(center=p_center, radius=r)
@@ -96,12 +96,14 @@ class TunnelOutline:
 
         p_top = p_center + Vector(0, r)
 
-        return [
-            Arc(p_start, p_center, p_top),
-            Arc(p_top, p_center, p_end)
-        ]
+        primitives = [Arc(p_start, p_center, p_top)]
 
-    def _generate_three_centre(self, offset: float) -> List[GeometricEntity]:
+        if not assume_symmetric:
+            primitives.append(Arc(p_top, p_center, p_end))
+
+        return primitives
+
+    def _generate_three_centre(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
         floor_point = Point(0.0, self.floor_height)
 
         r1 = self.dimensions[0] + offset
@@ -124,14 +126,20 @@ class TunnelOutline:
         p1 = line_circle_intersection(floor_point, Point(1000, self.floor_height) - floor_point, circle2, as_segment=True)[0]
         p5 = line_circle_intersection(floor_point, Point(-1000, self.floor_height) - floor_point, circle3, as_segment=True)[0]
 
-        return [
+        primitives = [
             Arc(p1, pc2, p2),
             Arc(p2, pc1, p3),
-            Arc(p3, pc1, p4),
-            Arc(p4, pc3, p5)
         ]
 
-    def _generate_five_centre(self, offset: float) -> List[GeometricEntity]:
+        if not assume_symmetric:
+            primitives.extend([
+                Arc(p3, pc1, p4),
+                Arc(p4, pc3, p5)
+            ])
+
+        return primitives
+
+    def _generate_five_centre(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
         floor_point = Point(0.0, self.floor_height)
 
         r1 = self.dimensions[0] + offset
@@ -159,31 +167,45 @@ class TunnelOutline:
         p1 = line_circle_intersection(floor_point, Point(1000, self.floor_height) - floor_point, circle2, as_segment=True)[0]
         p7 = line_circle_intersection(floor_point, Point(-1000, self.floor_height) - floor_point, circle3, as_segment=True)[0]
 
-        return [
+        primitives = [
             Arc(p1, p6, p2),
             Arc(p2, pc2, p3),
-            Arc(p3, pc1, p4),
-            Arc(p4, pc1, p5),
-            Arc(p5, pc3, p6),
-            Arc(p6, p2, p7),
+            Arc(p3, pc1, p4)
         ]
 
-    def _generate_box(self, offset: float) -> List[GeometricEntity]:
+        if not assume_symmetric:
+            primitives.extend([
+                Arc(p4, pc1, p5),
+                Arc(p5, pc3, p6),
+                Arc(p6, p2, p7),
+            ])
+
+        return primitives
+
+    def _generate_box(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
         half_w = self.dimensions[0] / 2 + offset
         height = self.dimensions[1] + offset
 
         p1 = Point(half_w, 0.0)
         p2 = Point(half_w, height)
+        p_top = Point(0.0, height)
         p3 = Point(-half_w, height)
         p4 = Point(-half_w, 0.0)
 
-        return [
+        primitives = [
             Line(p1, p2),
-            Line(p2, p3),
-            Line(p3, p4),
+            Line(p2, p_top),
         ]
 
-    def _generate_d_segments(self, offset: float) -> List[GeometricEntity]:
+        if not assume_symmetric:
+            primitives.extend([
+                Line(p_top, p3),
+                Line(p3, p4),
+            ])
+
+        return primitives
+
+    def _generate_d_segments(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
         y = self.floor_height
 
         r1 = self.dimensions[0] + offset
@@ -197,13 +219,18 @@ class TunnelOutline:
         p4 = Point(-r1, cy)
         p5 = Point(-r1, y)
 
-        return [
+        primitives = [
             Line(p1, p2),
             Arc(p2, pc, p3),
-            Arc(p3, pc, p4),
-            Line(p4, p5)
         ]
 
+        if not assume_symmetric:
+            primitives.extend([
+                Arc(p3, pc, p4),
+                Line(p4, p5)
+            ])
+
+        return primitives
 
 @dataclass(frozen=True)
 class TunnelProfile:
@@ -212,7 +239,7 @@ class TunnelProfile:
     inner: TunnelOutline
     outer: Optional[TunnelOutline] = None
 
-    def get_combined_loop(self, user_thickness: float = 0.5) -> BoundaryLoop:
+    def get_combined_loop(self, user_thickness: float, assume_symmetric: bool) -> BoundaryLoop:
         """
         Generate a SINGLE closed C-shape loop defining the concrete domain.
         Sequence: Outer Arcs (CCW) -> Floor Line -> Inner Arcs (CW) -> Close.
@@ -221,14 +248,20 @@ class TunnelProfile:
 
         # 1. Generate Outer Primitives (CCW)
         if self.outer:
-            outer_ents = self.outer.get_primitives(offset=user_thickness)
+            outer_ents = self.outer.get_primitives(
+                offset=user_thickness,
+                assume_symmetric=assume_symmetric,
+            )
         else:
-            outer_ents = self.inner.get_primitives(offset=user_thickness)
+            outer_ents = self.inner.get_primitives(
+                offset=user_thickness,
+                assume_symmetric=assume_symmetric
+            )
 
         for e in outer_ents: e.label = "outer"
 
         # 2. Generate Inner Primitives (CCW)
-        inner_ents_ccw = self.inner.get_primitives()
+        inner_ents_ccw = self.inner.get_primitives(assume_symmetric=assume_symmetric)
 
         if not outer_ents or not inner_ents_ccw:
             return loop

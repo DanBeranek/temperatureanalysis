@@ -251,7 +251,7 @@ class PyVistaWidget(QWidget):
             return
 
         thickness = getattr(geometry_data.parameters, "thickness", 0.5)
-        loop = profile.get_combined_loop(user_thickness=thickness)
+        loop = profile.get_combined_loop(user_thickness=thickness, assume_symmetric=False)
 
         if not loop.entities:
             return
@@ -360,7 +360,9 @@ class PyVistaWidget(QWidget):
             self._result_heatmap_actor = self.plotter.add_mesh(
                 mesh,
                 scalars="temperature",
-                cmap="jet",
+                # cmap="jet",
+                cmap="hot",
+                lighting=False,
                 clim=[v_min, v_max],
                 scalar_bar_args={
                     "title": "Teplota (°C)",
