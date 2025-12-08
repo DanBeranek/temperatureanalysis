@@ -436,6 +436,10 @@ class PyVistaWidget(QWidget):
 
     def _clear_results_layer(self):
         """Removes results actors."""
+        try:
+            self.plotter.remove_scalar_bar("Teplota (°C)", False)
+        except Exception as e:
+            pass
         if self._result_heatmap_actor:
             self.plotter.remove_actor(self._result_heatmap_actor)
             self._result_heatmap_actor = None
