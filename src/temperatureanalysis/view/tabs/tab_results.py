@@ -2,7 +2,7 @@ import datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar, QFormLayout,
-    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog
+    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog, QCheckBox
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 import logging
@@ -15,8 +15,8 @@ from temperatureanalysis.controller.workers import SolverWorker, prepare_simulat
 logger = logging.getLogger(__name__)
 
 class ResultsControlPanel(QWidget):
-    # Signal: (mesh_path, temperature_array)
-    update_view_requested = Signal(str, object, bool)
+    # Signal: (mesh_path, temperature_array, v_min_override, reset_camera)
+    update_view_requested = Signal(str, object, object, bool)
     results_generated = Signal()
 
     def __init__(self, project_state: ProjectState) -> None:
@@ -100,6 +100,25 @@ class ResultsControlPanel(QWidget):
 
         l_vis.addLayout(hbox_play)
 
+        # Colorbar Min Value Control
+        hbox_min = QHBoxLayout()
+        hbox_min.addWidget(QLabel("Min. Teplota:"))
+
+        self.chk_auto_min = QCheckBox("Auto")
+        self.chk_auto_min.setChecked(True)
+        self.chk_auto_min.toggled.connect(self.on_vis_settings_changed)
+        hbox_min.addWidget(self.chk_auto_min)
+
+        self.spin_vmin = QDoubleSpinBox()
+        self.spin_vmin.setRange(20, 2000)
+        self.spin_vmin.setValue(20)
+        self.spin_vmin.setSuffix(" °C")
+        self.spin_vmin.setEnabled(False)
+        self.spin_vmin.valueChanged.connect(self.on_vis_settings_changed)
+        hbox_min.addWidget(self.spin_vmin)
+
+        l_vis.addLayout(hbox_min)
+
         # FPS Control
         hbox_fps = QHBoxLayout()
         hbox_fps.addWidget(QLabel("Rychlost animace:"))
@@ -127,6 +146,14 @@ class ResultsControlPanel(QWidget):
     def on_params_changed(self) -> None:
         self.project.total_time_minutes = self.spin_total_time.value()
         self.project.time_step = self.spin_dt.value()
+
+    def on_vis_settings_changed(self) -> None:
+        """Called when auto-min checkbox or spinbox changes."""
+        self.spin_vmin.setEnabled(not self.chk_auto_min.isChecked())
+
+        # Trigger update of the view
+        if self.project.results:
+            self.on_slider_changed(self.slider.value())
 
     def load_from_state(self) -> None:
         """Syncs UI from loaded ProjectState."""
@@ -192,11 +219,9 @@ class ResultsControlPanel(QWidget):
             self.slider.setEnabled(True)
             self.btn_play.setEnabled(True)
             self.btn_export.setEnabled(True)
-            self.slider.blockSignals(True)
             self.slider.setRange(0, count - 1)
+            # Setting slider value will emit slider change and update view
             self.slider.setValue(count - 1)
-            self.slider.blockSignals(False)
-            self.update_view_requested.emit(self.project.mesh_path, self.project.results[-1], False)
 
             # Notify that results are ready
             self.results_generated.emit()
@@ -231,8 +256,13 @@ class ResultsControlPanel(QWidget):
 
         self.lbl_time.setText(f"Čas: {str(datetime.timedelta(seconds=time_val))}")
 
+        # Determine v_min override
+        v_min_override = None
+        if not self.chk_auto_min.isChecked():
+            v_min_override = self.spin_vmin.value()
+
         # Emit signal to MainWindow
-        self.update_view_requested.emit(self.project.mesh_path, temp_data, False)
+        self.update_view_requested.emit(self.project.mesh_path, temp_data, v_min_override, False)
 
     # --- ANIMATION LOGIC ---
 

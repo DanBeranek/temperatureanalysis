@@ -217,10 +217,21 @@ class MainWindow(QMainWindow):
         self.act_export_vtu.setEnabled(True)
         self.visualizer.set_results_visible(True, render=False)
 
-    def on_results_update(self, mesh_path: str, scalars, reset_camera: bool = False) -> None:
+    def on_results_update(
+        self,
+        mesh_path: str,
+        scalars,
+        v_min_limit: Optional[float] = None,
+        reset_camera: bool = False
+    ) -> None:
         """Called when user scrubs the time slider."""
         celsius_data = np.asarray(self.project.results) - 273.15
-        v_min = np.min(celsius_data)
+
+        # Use Override if provided, else use Auto Min
+        if v_min_limit is not None:
+            v_min = float(v_min_limit)
+        else:
+            v_min = np.min(celsius_data)
         v_max = np.max(celsius_data)
         self.visualizer.update_scene(self.project, scalars, v_min=v_min, v_max=v_max, reset_camera=reset_camera, levels=[500])
 
