@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import StrEnum
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
@@ -84,6 +84,73 @@ class Material(ABC):
             float: Volumetric heat capacity in J/(m³·K).
         """
         return self.density(temperature_K) * self.specific_heat_capacity(temperature_K)
+
+class GenericTabulatedMaterial(Material):
+    """
+    Generic material defined by tabulated properties.
+    """
+    def __init__(
+        self,
+        name: str,
+        color: str,
+        densities: npt.NDArray[np.float64],
+        temperatures_K: npt.NDArray[np.float64],
+        thermal_conductivities: npt.NDArray[np.float64],
+        specific_heat_capacities: npt.NDArray[np.float64]
+    ):
+        super().__init__(name, color, densities[0])
+
+        if not (
+            len(temperatures_K) == len(densities) == len(thermal_conductivities) == len(specific_heat_capacities)
+        ):
+            raise ValueError("All input arrays must have the same length.")
+
+        if not np.all(np.diff(temperatures_K) > 0):
+            raise ValueError("Temperature array must be strictly increasing.")
+
+        if np.any(densities <= 0):
+            raise ValueError("Densities must be positive.")
+
+        if np.any(thermal_conductivities <= 0):
+            raise ValueError("Thermal conductivities must be positive.")
+
+        if np.any(specific_heat_capacities <= 0):
+            raise ValueError("Specific heat capacities must be positive.")
+
+        if len(temperatures_K) < 2:
+            raise ValueError("At least two data points are required for interpolation.")
+
+        self.temperatures_K = temperatures_K
+        self.densities = densities
+        self.thermal_conductivities = thermal_conductivities
+        self.specific_heat_capacities = specific_heat_capacities
+
+    def thermal_conductivity(self, temperature_K: float) -> float:
+        return np.interp(
+            x=temperature_K,
+            xp=self.temperatures_K,
+            fp=self.thermal_conductivities,
+            left=self.thermal_conductivities[0],
+            right=self.thermal_conductivities[-1]
+        )
+
+    def density(self, temperature_K: float) -> float:
+        return np.interp(
+            x=temperature_K,
+            xp=self.temperatures_K,
+            fp=self.densities,
+            left=self.densities[0],
+            right=self.densities[-1]
+        )
+
+    def specific_heat_capacity(self, temperature_K: float) -> float:
+        return np.interp(
+            x=temperature_K,
+            xp=self.temperatures_K,
+            fp=self.specific_heat_capacities,
+            left=self.specific_heat_capacities[0],
+            right=self.specific_heat_capacities[-1]
+        )
 
 
 class ThermalConductivityBoundary(StrEnum):
