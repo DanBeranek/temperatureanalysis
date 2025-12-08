@@ -219,6 +219,8 @@ class PyVistaWidget(QWidget):
             return self._cached_mesh
 
         try:
+            # clear previous mesh from the plot
+            self._clear_mesh_layer()
             mesh = pv.read(path)
             self._cached_mesh = mesh
             self._cached_mesh_path = path
