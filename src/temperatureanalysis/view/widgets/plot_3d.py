@@ -363,7 +363,7 @@ class PyVistaWidget(QWidget):
                 mesh,
                 scalars="temperature",
                 # cmap="jet",
-                cmap="hot",
+                cmap="fire",
                 lighting=False,
                 clim=[v_min, v_max],
                 scalar_bar_args={
