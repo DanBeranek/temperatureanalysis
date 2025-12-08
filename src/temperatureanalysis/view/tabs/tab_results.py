@@ -290,3 +290,12 @@ class ResultsControlPanel(QWidget):
             self.btn_play.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
         else:
             self.btn_play.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+
+    def reset_status(self) -> None:
+        """Reset all status indicators."""
+        self.lbl_time.setText("Čas: -")
+        self.slider.setEnabled(False)
+        self.btn_play.setEnabled(False)
+        self.btn_export.setEnabled(False)
+        self.slider.setValue(0)
+        self.update_play_icon()

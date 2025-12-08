@@ -192,12 +192,9 @@ class MainWindow(QMainWindow):
 
     def on_data_changed(self) -> None:
         """Slot called when project data changes."""
-        # 1. Invalidate Mesh because geometry changed
-        if self.project.mesh_path:
-            self.project.mesh_path = None
-            self.mesh_panel.reset_status()
-            self.act_export_mesh.setEnabled(False)
-            self.act_export_vtu.setEnabled(False)
+        # Invalidate Mesh and Results
+        self._invalidate_mesh()
+        self._invalidate_results()
 
         # 2. Update UI State
         self.set_modified(True)
@@ -210,6 +207,9 @@ class MainWindow(QMainWindow):
         self.set_modified(True)
         self.act_export_mesh.setEnabled(True)
         self.visualizer.set_mesh_visible(True)
+
+        # Invalidate Results because mesh changed
+        self._invalidate_results()
 
     def on_results_generated(self) -> None:
         """Slot called when RESULTS are generated."""
@@ -379,3 +379,18 @@ class MainWindow(QMainWindow):
             self.visualizer.plotter.close()
 
         event.accept() # Actually close the window
+
+    def _invalidate_mesh(self) -> None:
+        """Helper to invalidate mesh and update UI."""
+        if self.project.mesh_path:
+            self.project.mesh_path = None
+            self.mesh_panel.reset_status()
+            self.act_export_mesh.setEnabled(False)
+
+    def _invalidate_results(self) -> None:
+        """Helper to invalidate results and update UI."""
+        if self.project.results:
+            self.project.results = []
+            self.project.time_steps = []
+            self.results_panel.reset_status()
+            self.act_export_vtu.setEnabled(False)
