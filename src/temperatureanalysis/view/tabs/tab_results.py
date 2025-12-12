@@ -197,6 +197,7 @@ class ResultsControlPanel(QWidget):
             self.progress.setRange(0, 100)  # Switch to percentage
             self.solver_worker = SolverWorker(model, self.project)
             self.solver_worker.progress_updated.connect(self.on_progress)
+            self.solver_worker.results_ready.connect(self.on_results_ready)  # THREAD SAFE
             self.solver_worker.finished.connect(self.on_finished)
             self.solver_worker.error_occurred.connect(self.on_error)
             self.solver_worker.start()
@@ -208,6 +209,15 @@ class ResultsControlPanel(QWidget):
     def on_progress(self, percent: int, msg: str) -> None:
         self.progress.setValue(percent)
         self.lbl_time.setText(msg)
+
+    def on_results_ready(self, temperatures: list, time_steps: list) -> None:
+        """
+        THREAD SAFE: Handle results from worker thread.
+        This runs in the main thread via Qt's signal/slot mechanism.
+        """
+        self.project.results = temperatures
+        self.project.time_steps = time_steps
+        logger.info(f"Results received: {len(temperatures)} frames")
 
     def on_finished(self) -> None:
         self.btn_run.setEnabled(True)

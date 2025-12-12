@@ -12,6 +12,7 @@ from temperatureanalysis.controller.fea.pre.material_helpers import (
 )
 
 from temperatureanalysis.controller.fea.utils import kelvin_to_celsius
+from temperatureanalysis.model.materials import ThermalConductivityBoundary
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -152,10 +153,6 @@ class GenericTabulatedMaterial(Material):
             right=self.specific_heat_capacities[-1]
         )
 
-
-class ThermalConductivityBoundary(StrEnum):
-    LOWER = "lower"
-    UPPER = "upper"
 
 class Concrete(Material):
     """

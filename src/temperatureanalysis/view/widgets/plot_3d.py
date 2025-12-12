@@ -29,6 +29,12 @@ from temperatureanalysis.view.widgets.vtk_utils import VtkUtils
 
 logger = logging.getLogger(__name__)
 
+# --- CONSTANTS ---
+Z_OFFSET_GEOMETRY = -0.001  # Z-offset for geometry to prevent z-fighting
+Z_OFFSET_MESH = 0.001  # Z-offset for mesh wireframe
+PROGRESS_CAP_PERCENT = 98  # Cap progress at this % until truly complete
+REGRID_DEBOUNCE_MS = 100  # Debounce interval for grid updates
+
 # --- DATA CLASSES FOR VISUALIZATION ---
 
 @dataclass
@@ -88,7 +94,7 @@ class PyVistaWidget(QWidget):
         # Debounce timer for grid updates
         self._regrid_timer = QTimer(self)
         self._regrid_timer.setSingleShot(True)
-        self._regrid_timer.setInterval(100)
+        self._regrid_timer.setInterval(REGRID_DEBOUNCE_MS)
         self._regrid_timer.timeout.connect(self._regrid_if_changed)
 
     # ------------------------------------------------------------------------------
@@ -293,7 +299,7 @@ class PyVistaWidget(QWidget):
                     show_scalar_bar=False,
                     label="Geometry"
                 )
-                act_fill.position = (0, 0, -0.001)  # Slight offset to prevent z-fighting
+                act_fill.position = (0, 0, Z_OFFSET_GEOMETRY)
                 self._geo_actors.append(act_fill)
 
             # Add Edge actor
@@ -308,7 +314,7 @@ class PyVistaWidget(QWidget):
                 render_lines_as_tubes=False,
                 show_scalar_bar=False,
             )
-            act_edge.position = (0, 0, -0.001)  # Slight offset to prevent z-fighting
+            act_edge.position = (0, 0, Z_OFFSET_GEOMETRY)
             self._geo_actors.append(act_edge)
 
     def _update_mesh_layer(self, mesh: pv.DataSet) -> None:
@@ -325,7 +331,7 @@ class PyVistaWidget(QWidget):
             opacity=0.2,
             label='Mesh'
         )
-        self._mesh_wireframe_actor.position = (0, 0, 0.001)
+        self._mesh_wireframe_actor.position = (0, 0, Z_OFFSET_MESH)
 
     def _update_results_layer(
         self,

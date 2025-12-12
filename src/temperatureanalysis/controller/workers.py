@@ -61,6 +61,7 @@ class SolverWorker(QThread):
     # Signals to update the UI from the background
     progress_updated = Signal(int, str)  # e.g., (10, "Solving step 5/50...")
     error_occurred = Signal(str)
+    results_ready = Signal(list, list)  # (temperatures, time_steps) - THREAD SAFE
 
     def __init__(self, model: Model, project_state: ProjectState):
         super().__init__()
@@ -105,8 +106,9 @@ class SolverWorker(QThread):
             self.progress_updated.emit(99, "Zpracovávám výsledky...")
 
             logger.info("Extracting results from the model...")
-            self.project.results = result.temperatures
-            self.project.time_steps = result.time_steps
+            # THREAD SAFE: Emit signal instead of direct assignment
+            # Main thread will handle the actual assignment to project state
+            self.results_ready.emit(result.temperatures, result.time_steps)
 
         except Exception as e:
             logger.error(f"Error in SolverWorker: {e}")

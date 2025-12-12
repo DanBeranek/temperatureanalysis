@@ -14,12 +14,15 @@ import csv
 import logging
 import numpy as np
 
-from temperatureanalysis.controller.fea.pre.material import ThermalConductivityBoundary, Concrete
-
 if TYPE_CHECKING:
     import numpy.typing as npt
 
 logger = logging.getLogger(__name__)
+
+class ThermalConductivityBoundary(StrEnum):
+    """Boundary selection for thermal conductivity in concrete materials."""
+    LOWER = "lower"
+    UPPER = "upper"
 
 class MaterialType(StrEnum):
     GENERIC = "Vlastní"
@@ -214,19 +217,18 @@ class GenericMaterial(Material):
         prop = None
         if property_type == TemperatureDependentProperty.CONDUCTIVITY:
             prop = self.conductivity
-            temps = self.conductivity.temperatures
         elif property_type == TemperatureDependentProperty.SPECIFIC_HEAT_CAPACITY:
             prop = self.specific_heat_capacity
-            temps = self.conductivity.temperatures
         elif property_type == TemperatureDependentProperty.DENSITY:
             prop = self.density
-            temps = self.conductivity.temperatures
 
         if not prop:
-            return temps, np.zeros_like(temps)
+            return np.array([]), np.array([])
 
-        values = [prop.get_value_at(t) for t in temps]
-        return temps, np.array(values)
+        # Use the property's own temperatures, not conductivity's!
+        temps = np.array(prop.temperatures)
+        values = np.array(prop.values)
+        return temps, values
 
     @classmethod
     def from_csv(cls, name: str, filepath: str) -> GenericMaterial:
@@ -275,7 +277,7 @@ class ConcreteMaterial(Material):
         base.update({
             "initial_density": self.initial_density,
             "initial_moisture_content": self.initial_moisture_content,
-            "conductivity_boundary": self.conductivity_boundary.value
+            "conductivity_boundary": self.conductivity_boundary
         })
         return base
 
@@ -289,6 +291,71 @@ class ConcreteMaterial(Material):
             conductivity_boundary=ThermalConductivityBoundary(data.get("conductivity_boundary", ConcreteConfig.conductivity_boundary.value))
         )
 
+    # --- EUROCODE CALCULATION METHODS (ČSN EN 1992-1-2) ---
+
+    def _calculate_thermal_conductivity(self, temp_celsius: float) -> float:
+        """
+        Calculate thermal conductivity according to Eurocode 2.
+
+        Args:
+            temp_celsius: Temperature in Celsius
+
+        Returns:
+            Thermal conductivity in W/(m·K)
+        """
+        if self.conductivity_boundary == ThermalConductivityBoundary.UPPER:
+            if temp_celsius <= 1200.0:
+                return 2 - 0.2451 * (temp_celsius / 100.0) + 0.0107 * (temp_celsius / 100.0) ** 2
+            return 0.5996
+        else:  # LOWER boundary
+            if temp_celsius <= 1200.0:
+                return 1.36 - 0.136 * (temp_celsius / 100.0) + 0.0057 * (temp_celsius / 100.0) ** 2
+            return 0.5488
+
+    def _calculate_density(self, temp_celsius: float) -> float:
+        """
+        Calculate density according to Eurocode 2.
+
+        Args:
+            temp_celsius: Temperature in Celsius
+
+        Returns:
+            Density in kg/m³
+        """
+        if temp_celsius <= 115.0:
+            return self.initial_density
+        if temp_celsius <= 200.0:
+            return self.initial_density * (1 - 0.02 * (temp_celsius - 115.0) / 85.0)
+        if temp_celsius <= 400.0:
+            return self.initial_density * (0.98 - 0.03 * (temp_celsius - 200.0) / 200.0)
+        return self.initial_density * (0.95 - 0.07 * (temp_celsius - 400.0) / 800.0)
+
+    def _calculate_specific_heat(self, temp_celsius: float) -> float:
+        """
+        Calculate specific heat capacity according to Eurocode 2.
+
+        Args:
+            temp_celsius: Temperature in Celsius
+
+        Returns:
+            Specific heat capacity in J/(kg·K)
+        """
+        # Moisture bump for specific heat capacity
+        u_V = np.array([0.0, 1.5, 3.0, 10.0])
+        d_V = np.array([900.0, 1470.0, 2020.0, 5600.0]) - 900.0
+        d = float(np.interp(self.initial_moisture_content, u_V, d_V))  # moisture bump
+
+        if temp_celsius <= 100.0:
+            return 900.0
+        if temp_celsius <= 115.0:
+            return 900.0 + d
+        if temp_celsius <= 200.0:
+            return 900.0 + d - ((900.0 + d - 1000.0) / 85.0) * (temp_celsius - 115.0)
+        if temp_celsius <= 400.0:
+            return 1000.0 + (temp_celsius - 200.0) / 2.0
+        # else:
+        return 1100.0
+
     def get_preview_curve(
         self,
         property_name: TemperatureDependentProperty,
@@ -296,26 +363,23 @@ class ConcreteMaterial(Material):
         temperature_max: float = 1200,
         steps: int = 100
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        concrete_material = Concrete(
-            initial_density=self.initial_density,
-            initial_moisture_content=self.initial_moisture_content,
-            boundary=self.conductivity_boundary,
-            name=self.name
-        )
-
+        """
+        Generate preview curve for plotting in the UI.
+        Uses Eurocode 2 (ČSN EN 1992-1-2) formulas.
+        """
         if property_name == TemperatureDependentProperty.CONDUCTIVITY:
-            temps_kelvin = np.linspace(293.15, 1473.15, num=steps)
-            vals = np.array([concrete_material.thermal_conductivity(t) for t in temps_kelvin])
+            temps_celsius = np.linspace(20, 1200, num=steps)
+            vals = np.array([self._calculate_thermal_conductivity(t) for t in temps_celsius])
         elif property_name == TemperatureDependentProperty.DENSITY:
-            temps_kelvin = np.array([293.15, 388.15, 473.15, 673.15, 1473.15])
-            vals = np.array([concrete_material.density(t) for t in temps_kelvin])
+            temps_celsius = np.array([20, 115, 200, 400, 1200])
+            vals = np.array([self._calculate_density(t) for t in temps_celsius])
         elif property_name == TemperatureDependentProperty.SPECIFIC_HEAT_CAPACITY:
-            temps_kelvin = np.array([293.15, 373.15, 388.15, 473.15, 673.15, 1473.15])
-            vals = np.array([concrete_material.specific_heat_capacity(t) for t in temps_kelvin])
+            temps_celsius = np.array([20, 100, 115, 200, 400, 1200])
+            vals = np.array([self._calculate_specific_heat(t) for t in temps_celsius])
         else:
             raise ValueError(f"Unknown property: {property_name}")
 
-        return (temps_kelvin - 273.15, vals)  # Convert to Celsius for output
+        return (temps_celsius, vals)
 
 
 

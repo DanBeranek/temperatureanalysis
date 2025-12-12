@@ -80,12 +80,23 @@ class IOManager:
                     name: mat.to_dict()
                     for name, mat in state.material_library.materials.items()
                 }
-                grp_mats.attrs["material_library_json"] = json.dumps(lib_data)
+                lib_json = json.dumps(lib_data)
+
+                # Use dataset if data exceeds HDF5 attribute size limit (64KB)
+                if len(lib_json) > 60000:  # Safety margin
+                    logger.info(f"Material library is large ({len(lib_json)} bytes), using dataset")
+                    grp_mats.create_dataset("material_library", data=np.void(lib_json.encode('utf-8')))
+                else:
+                    grp_mats.attrs["material_library_json"] = lib_json
 
                 # Save selected material
                 if state.selected_material:
                     # Save the full state of the selected material to be safe
-                    grp_mats.attrs["selected_material"] = json.dumps(state.selected_material.to_dict())
+                    sel_json = json.dumps(state.selected_material.to_dict())
+                    if len(sel_json) > 60000:
+                        grp_mats.create_dataset("selected_material", data=np.void(sel_json.encode('utf-8')))
+                    else:
+                        grp_mats.attrs["selected_material"] = sel_json
 
                 # --- 3. SAVE ANALYSIS SETTINGS ---
                 grp_sim = f.create_group("analysis_settings")
@@ -181,10 +192,17 @@ class IOManager:
                 if "materials" in f:
                     grp_mats = f["materials"]
 
-                    # Load material library
-                    if "material_library_json" in grp_mats.attrs:
+                    # Load material library (check both dataset and attribute)
+                    lib_json = None
+                    if "material_library" in grp_mats:
+                        # Large data stored as dataset
+                        lib_json = bytes(grp_mats["material_library"][()]).decode('utf-8')
+                    elif "material_library_json" in grp_mats.attrs:
+                        # Small data stored as attribute
+                        lib_json = grp_mats.attrs["material_library_json"]
+
+                    if lib_json:
                         try:
-                            lib_json = grp_mats.attrs["material_library_json"]
                             lib_data = json.loads(lib_json)
                             state.material_library.materials.clear()
                             for name, mat_dict in lib_data.items():
@@ -199,10 +217,17 @@ class IOManager:
                         except Exception as e:
                             logger.error(f"Failed to load material library: {e}")
 
-                    # Load selected material
-                    if "selected_material" in grp_mats.attrs:
+                    # Load selected material (check both dataset and attribute)
+                    sel_json = None
+                    if "selected_material" in grp_mats:
+                        # Large data stored as dataset
+                        sel_json = bytes(grp_mats["selected_material"][()]).decode('utf-8')
+                    elif "selected_material" in grp_mats.attrs:
+                        # Small data stored as attribute
+                        sel_json = grp_mats.attrs["selected_material"]
+
+                    if sel_json:
                         try:
-                            sel_json = grp_mats.attrs["selected_material"]
                             sel_dict = json.loads(sel_json)
                             mat_type = sel_dict.get("type")
                             if mat_type == MaterialType.CONCRETE:

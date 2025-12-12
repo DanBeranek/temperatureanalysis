@@ -44,6 +44,13 @@ class GenericMaterialEditor(QWidget):
         super().__init__(parent)
         self.current_material: Optional[GenericMaterial] = None
 
+        # Timer for debouncing table changes (prevents C++ object access issues)
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(0)
+        self._save_timer.timeout.connect(self._on_timer_save)
+        self._current_page = None  # Store current page reference for timer callback
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -115,52 +122,60 @@ class GenericMaterialEditor(QWidget):
 
             if not prop: return
 
-            # 1. Scrape current UI data
-            points = []
-            for r in range(table.rowCount()):
-                try:
-                    t = float(table.item(r, 0).text())
-                    v = float(table.item(r, 1).text())
-                    points.append((t, v))
-                except (ValueError, AttributeError): pass
+            # Block table signals to prevent timer trigger during manual update
+            table.blockSignals(True)
+            try:
+                # 1. Scrape current UI data
+                points = []
+                for r in range(table.rowCount()):
+                    try:
+                        t = float(table.item(r, 0).text())
+                        v = float(table.item(r, 1).text())
+                        points.append((t, v))
+                    except (ValueError, AttributeError): pass
 
-            points.sort(key=lambda x: x[0])
+                points.sort(key=lambda x: x[0])
 
-            # 2. Calculate insertion point
-            if not points:
-                points = [(20.0, 0.0), (1200.0, 0.0)]
-            elif len(points) == 1:
-                # Extend range
-                points.append((points[0][0] + 100.0, points[0][1]))
-            else:
-                # Find max gap
-                max_gap = -1.0
-                best_idx = 0
-                for i in range(len(points) - 1):
-                    gap = points[i+1][0] - points[i][0]
-                    if gap > max_gap:
-                        max_gap = gap
-                        best_idx = i
+                # 2. Calculate insertion point
+                if not points:
+                    points = [(20.0, 0.0), (1200.0, 0.0)]
+                elif len(points) == 1:
+                    # Extend range
+                    points.append((points[0][0] + 100.0, points[0][1]))
+                else:
+                    # Find max gap
+                    max_gap = -1.0
+                    best_idx = 0
+                    for i in range(len(points) - 1):
+                        gap = points[i+1][0] - points[i][0]
+                        if gap > max_gap:
+                            max_gap = gap
+                            best_idx = i
 
-                # Split gap
-                t1, v1 = points[best_idx]
-                t2, v2 = points[best_idx+1]
+                    # Split gap
+                    t1, v1 = points[best_idx]
+                    t2, v2 = points[best_idx+1]
 
-                new_t = t1 + max_gap / 2.0
-                ratio = (new_t - t1) / max_gap
-                new_v = v1 + ratio * (v2 - v1)
+                    new_t = t1 + max_gap / 2.0
+                    ratio = (new_t - t1) / max_gap
+                    new_v = v1 + ratio * (v2 - v1)
 
-                points.append((new_t, new_v))
+                    points.append((new_t, new_v))
 
-            # 3. Update Model
-            # sort points
-            points.sort(key=lambda x: x[0])
-            t_list = [p[0] for p in points]
-            v_list = [p[1] for p in points]
-            prop.set_curve(t_list, v_list)
+                # 3. Update Model
+                # sort points
+                points.sort(key=lambda x: x[0])
+                t_list = [p[0] for p in points]
+                v_list = [p[1] for p in points]
+                prop.set_curve(t_list, v_list)
 
-            # 4. Refresh UI
-            self._load_prop_to_tab(page, prop)
+                # 4. Refresh UI (signals still blocked)
+                self._load_prop_to_tab(page, prop)
+            finally:
+                # Always unblock signals
+                table.blockSignals(False)
+
+            # 5. Emit change signal AFTER table is fully updated
             self.dataChanged.emit()
 
         def del_row():
@@ -170,15 +185,17 @@ class GenericMaterialEditor(QWidget):
                 return
 
             table.blockSignals(True)
-            r = table.currentRow()
-            if r >= 0:
-                table.removeRow(r)
-                self._save_current_prop(page)
-            else:
-                # Optional: Remove last row if nothing selected
-                table.removeRow(table.rowCount() - 1)
-                self._save_current_prop(page)
-            table.blockSignals(False)
+            try:
+                r = table.currentRow()
+                if r >= 0:
+                    table.removeRow(r)
+                    self._save_current_prop(page)
+                else:
+                    # Optional: Remove last row if nothing selected
+                    table.removeRow(table.rowCount() - 1)
+                    self._save_current_prop(page)
+            finally:
+                table.blockSignals(False)
 
         def load_csv():
             self._import_csv_curve(page)
@@ -188,7 +205,12 @@ class GenericMaterialEditor(QWidget):
         btn_load_csv.clicked.connect(load_csv)
 
         # FIX: Defer the save to allow item editor to close cleanly
-        table.itemChanged.connect(lambda item: QTimer.singleShot(0, lambda: self._save_current_prop(page)))
+        # Use instance timer to prevent C++ object access issues
+        def on_item_changed(item):
+            self._current_page = page
+            self._save_timer.start()
+
+        table.itemChanged.connect(on_item_changed)
 
         return page
 
@@ -203,6 +225,11 @@ class GenericMaterialEditor(QWidget):
         self.blockSignals(False)
         # Trigger initial plot update
         self._on_tab_changed(self.tabs.currentIndex())
+
+    def _on_timer_save(self):
+        """Timer callback to save current page data (prevents C++ object issues)."""
+        if self._current_page:
+            self._save_current_prop(self._current_page)
 
     def _get_prop_for_page(self, page):
         if page == self.tab_cond:
@@ -377,7 +404,7 @@ class ConcreteMaterialEditor(QWidget):
     def _on_value_changed(self):
         if not self.current_material: return
         self.current_material.initial_density = self.spin_dens.value()
-        self.current_material.moisture_content = self.spin_moist.value()
+        self.current_material.initial_moisture_content = self.spin_moist.value()
         self.current_material.conductivity_boundary = self.combo_bound.currentData()
         self.dataChanged.emit()
 
@@ -598,12 +625,30 @@ class MaterialsDialog(QDialog):
         if not self.current_material: return
         if self.edit_name.isReadOnly(): return
 
-        new_name = self.edit_name.text()
-        if new_name and new_name != self.current_material.name:
-            del self.working_library.materials[self.current_material.name]
-            self.current_material.name = new_name
-            self.working_library.materials[new_name] = self.current_material
-            self._refresh_list()
+        new_name = self.edit_name.text().strip()
+
+        # Validation: Check for empty name
+        if not new_name:
+            QMessageBox.warning(self, "Chyba", "Název nemůže být prázdný.")
+            self.edit_name.setText(self.current_material.name)  # Revert
+            return
+
+        # No change needed
+        if new_name == self.current_material.name:
+            return
+
+        # Validation: Check for name collision
+        if new_name in self.working_library.materials:
+            QMessageBox.warning(self, "Chyba", f"Materiál '{new_name}' již existuje.")
+            self.edit_name.setText(self.current_material.name)  # Revert
+            return
+
+        # Safe to rename
+        old_name = self.current_material.name
+        del self.working_library.materials[old_name]
+        self.current_material.name = new_name
+        self.working_library.materials[new_name] = self.current_material
+        self._refresh_list()
 
     def on_desc_changed(self):
         if not self.current_material: return
@@ -679,6 +724,10 @@ class MaterialsDialog(QDialog):
 
         # Fetch Data
         temps, values = self.current_material.get_preview_curve(prop_key)
+
+        logger.info(f"Updating plot for {self.current_material.name} - {prop_key.name}: {len(temps)} points, "
+                    f"temps={temps}, "
+                    f"values={values}.")
 
         plot.clear()
 

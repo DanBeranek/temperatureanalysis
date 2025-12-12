@@ -68,7 +68,13 @@ class GmshMesher:
         self._initialized = False
 
     def _ensure_init(self):
+        """Initialize Gmsh if not already initialized."""
         if not self._initialized:
+            gmsh.initialize()
+            self._initialized = True
+        # Double-check gmsh state in case it was finalized externally
+        elif not gmsh.is_initialized():
+            logger.warning("Gmsh was finalized externally, reinitializing")
             gmsh.initialize()
             self._initialized = True
 
@@ -209,8 +215,6 @@ class GmshMesher:
             from temperatureanalysis.model.io import IOManager
             IOManager._TEMP_FILES.append(output_filename)
 
-            gmsh.write(output_filename)
-
             logger.info(f"Mesh generated: {num_nodes} nodes, {num_elements} elements.")
 
             # gmsh.fltk.run()
@@ -227,8 +231,13 @@ class GmshMesher:
 
         finally:
             # Cleanup: Release memory and reset state
-            gmsh.finalize()
-            self._initialized = False
+            if self._initialized:
+                try:
+                    gmsh.finalize()
+                except Exception as finalize_error:
+                    logger.warning(f"Failed to finalize Gmsh: {finalize_error}")
+                finally:
+                    self._initialized = False
 
     @staticmethod
     def _get_boundary_loop(project: ProjectState, assume_symmetric: bool = True) -> Optional[BoundaryLoop]:
