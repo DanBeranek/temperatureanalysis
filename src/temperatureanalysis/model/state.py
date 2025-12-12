@@ -25,6 +25,7 @@ import numpy as np
 from temperatureanalysis.controller.mesher import MeshStats
 from temperatureanalysis.model.profiles import ProfileGroupKey, CustomTunnelShape, TunnelProfile, ALL_PROFILES, \
     TunnelOutline, OutlineShape, TunnelCategory
+from temperatureanalysis.model.materials import MaterialLibrary, Material, ConcreteMaterial
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -153,7 +154,10 @@ class ProjectState:
     filepath: Optional[str] = None
 
     geometry: GeometryData = field(default_factory=GeometryData)
-    materials: Dict[str, Any] = field(default_factory=dict)
+
+    # Material Management
+    material_library: MaterialLibrary = field(default_factory=MaterialLibrary)
+    selected_material: Optional[Material] = None
 
     time_step: float = 30.0
     total_time_minutes: float = 180.0
@@ -163,13 +167,18 @@ class ProjectState:
     results: list[npt.NDArray] = field(default_factory=list)
     time_steps: list[float] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        # Set default material if none provided
+        if self.selected_material is None:
+            self.selected_material = self.material_library.get_material("Beton (ČSN EN 1992-1-2)")
 
     def reset(self) -> None:
         """Clear all data for a new project"""
         self.project_name = "Untitled Project"
         self.filepath = None
         self.geometry = GeometryData()
-        self.materials = {}
+        self.material_library = MaterialLibrary()
+        self.selected_material = ConcreteMaterial(name="Beton (ČSN EN 1992-1-2)")
         self.mesh_path = None
         self.results = []
         self.time_steps = []

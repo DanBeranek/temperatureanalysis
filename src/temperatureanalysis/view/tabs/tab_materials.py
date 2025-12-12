@@ -2,11 +2,12 @@
 Materials Control Panel
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QLabel, QListWidget, QGroupBox, QHBoxLayout
+    QWidget, QVBoxLayout, QPushButton, QLabel, QGroupBox,
+    QComboBox, QMessageBox
 )
 from temperatureanalysis.model.state import ProjectState
-from temperatureanalysis.view.dialogs.materials_dialog import MaterialsDialog
-
+from temperatureanalysis.model.materials import MaterialLibrary
+from temperatureanalysis.view.dialogs.dialog_material import MaterialsDialog
 
 class MaterialsControlPanel(QWidget):
     def __init__(self, project_state: ProjectState, parent_window=None) -> None:
@@ -14,9 +15,12 @@ class MaterialsControlPanel(QWidget):
         self.project = project_state
         self.parent_window = parent_window
 
+        if not hasattr(self.project, "material_library"):
+            self.project.material_library = MaterialLibrary()
+
         layout = QVBoxLayout(self)
 
-        # 1. Management Section
+        # 1. Management
         manage_group = QGroupBox("Definice Materiálů")
         manage_layout = QVBoxLayout(manage_group)
 
@@ -28,27 +32,56 @@ class MaterialsControlPanel(QWidget):
         layout.addWidget(manage_group)
 
         # 2. Assignment Section
-        assign_group = QGroupBox("Přiřazení ke Konstrukci")
+        assign_group = QGroupBox("Materiál Konstrukce")
         assign_layout = QVBoxLayout(assign_group)
 
-        assign_layout.addWidget(QLabel("Vyberte komponentu (Ostění/Vzduch):"))
-        self.comp_list = QListWidget()
-        self.comp_list.addItems(["Vnitřní Ostění (Inner)", "Vnější Ostění (Outer)", "Vzduch (Air)"])
-        assign_layout.addWidget(self.comp_list)
-
         assign_layout.addWidget(QLabel("Vyberte materiál:"))
-        self.mat_list = QListWidget()  # This would be populated from ProjectState
-        self.mat_list.addItems(["Beton C30/37", "Vzduch (Standard)", "Zemina"])
-        assign_layout.addWidget(self.mat_list)
-
-        btn_assign = QPushButton("Přiřadit")
-        assign_layout.addWidget(btn_assign)
+        self.mat_combo = QComboBox()
+        self.mat_combo.currentIndexChanged.connect(self.on_assignment_changed)
+        assign_layout.addWidget(self.mat_combo)
 
         layout.addWidget(assign_group)
+
         layout.addStretch()
 
+        # Initial Load
+        self.refresh_combo()
+
     def open_manager_modal(self) -> None:
-        # Open the modal dialog defined previously
         dlg = MaterialsDialog(self.project, self.parent_window)
         dlg.exec()
-        # After dialog closes, refresh self.mat_list here...
+        self.refresh_combo()
+
+    def refresh_combo(self):
+        """Reloads material names into the combobox."""
+        # Block signals to prevent triggering selection change during reload
+        self.mat_combo.blockSignals(True)
+
+        current_selection_name = self.project.selected_material.name if self.project.selected_material else None
+
+        self.mat_combo.clear()
+
+        names = self.project.material_library.get_names()
+        self.mat_combo.addItems(names)
+
+        # Restore selection
+        if current_selection_name:
+            idx = self.mat_combo.findText(current_selection_name)
+            if idx >= 0:
+                self.mat_combo.setCurrentIndex(idx)
+        elif self.mat_combo.count() > 0:
+            # Default to first if nothing selected
+            self.mat_combo.setCurrentIndex(0)
+            self.on_assignment_changed() # Trigger save of default
+
+        self.mat_combo.blockSignals(False)
+
+    def on_assignment_changed(self):
+        """Called when combo box selection changes."""
+        material_name = self.mat_combo.currentText()
+        if not material_name:
+            return
+
+        mat = self.project.material_library.get_material(material_name)
+        if mat:
+            self.project.selected_material = mat

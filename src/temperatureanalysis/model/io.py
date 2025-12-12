@@ -2,6 +2,7 @@
 Input/Output Manager (HDF5)
 Handles saving and loading the ProjectState to .h5 files.
 """
+import json
 import logging
 import os
 import shutil
@@ -17,11 +18,9 @@ from importlib.metadata import version, PackageNotFoundError
 
 import pyvista as pv
 
-from temperatureanalysis.model.state import (
-    ProjectState, GeometryData, BoxParams, CircleParams, PredefinedParams
-)
-# Import TunnelShape to handle Enum conversion
+from temperatureanalysis.model.state import ProjectState, BoxParams, CircleParams, PredefinedParams
 from temperatureanalysis.model.profiles import CustomTunnelShape, ProfileGroupKey
+from temperatureanalysis.model.materials import Material, MaterialType, ConcreteMaterial, GenericMaterial
 
 # Get module logger
 logger = logging.getLogger(__name__)
@@ -74,12 +73,26 @@ class IOManager:
                 for key, val in params_dict.items():
                     grp_params.attrs[key] = val
 
-                # --- 2. SAVE ANALYSIS SETTINGS ---
+                # --- 2. SAVE MATERIALS ---
+                grp_mats = f.create_group("materials")
+                # Save library
+                lib_data = {
+                    name: mat.to_dict()
+                    for name, mat in state.material_library.materials.items()
+                }
+                grp_mats.attrs["material_library_json"] = json.dumps(lib_data)
+
+                # Save selected material
+                if state.selected_material:
+                    # Save the full state of the selected material to be safe
+                    grp_mats.attrs["selected_material"] = json.dumps(state.selected_material.to_dict())
+
+                # --- 3. SAVE ANALYSIS SETTINGS ---
                 grp_sim = f.create_group("analysis_settings")
                 grp_sim.attrs["time_step"] = state.time_step
                 grp_sim.attrs["total_time_minutes"] = state.total_time_minutes
 
-                # --- 3. SAVE RESULTS ---
+                # --- 4. SAVE RESULTS ---
                 if state.results and state.time_steps:
                     grp_res = f.create_group("results")
                     # Save time steps
@@ -97,7 +110,7 @@ class IOManager:
                         except Exception as e:
                             logger.error(f"Failed to stack results for saving: {e}")
 
-                # --- 4. SAVE MESH (BINARY) ---
+                # --- 5. SAVE MESH (BINARY) ---
                 if state.mesh_path and os.path.exists(state.mesh_path):
                     logger.debug(f"Saving mesh binary from {state.mesh_path}")
                     IOManager._save_mesh_binary(f, state.mesh_path)
@@ -128,10 +141,10 @@ class IOManager:
                 if "geometry" in f:
                     grp_geo = f["geometry"]
 
-                    # 1. Identify which parameter class to use
+                    # 1.1 Identify which parameter class to use
                     param_class_name = grp_geo.attrs.get("parameters_class", "BoxParams")
 
-                    # 2. Load raw values
+                    # 1.2 Load raw values
                     loaded_values = {}
                     if "parameters" in grp_geo:
                         grp_params = grp_geo["parameters"]
@@ -144,7 +157,7 @@ class IOManager:
                                 val = val.item()
                             loaded_values[key] = val
 
-                    # 3. Instantiate and Assign
+                    # 1.3 Instantiate and Assign
                     if param_class_name == "BoxParams":
                         state.geometry.parameters = BoxParams(**loaded_values)
                         state.geometry.shape_type = CustomTunnelShape.BOX
@@ -163,6 +176,42 @@ class IOManager:
                         state.geometry.shape_type = None
                         state.geometry.custom_shape = None
                         state.geometry.group_key = grp_geo.attrs.get("group_key", ProfileGroupKey.VL5_ROAD)
+
+                # --- LOAD MATERIALS ---
+                if "materials" in f:
+                    grp_mats = f["materials"]
+
+                    # Load material library
+                    if "material_library_json" in grp_mats.attrs:
+                        try:
+                            lib_json = grp_mats.attrs["material_library_json"]
+                            lib_data = json.loads(lib_json)
+                            state.material_library.materials.clear()
+                            for name, mat_dict in lib_data.items():
+                                # get class type from dict
+                                mat_type = mat_dict.get("type")
+                                if mat_type == MaterialType.CONCRETE:
+                                    mat = ConcreteMaterial.from_dict(mat_dict)
+                                elif mat_type == MaterialType.GENERIC:
+                                    mat = GenericMaterial.from_dict(mat_dict)
+                                state.material_library.materials[name] = mat
+                            logger.debug(f"Loaded {len(state.material_library.materials)} materials into library.")
+                        except Exception as e:
+                            logger.error(f"Failed to load material library: {e}")
+
+                    # Load selected material
+                    if "selected_material" in grp_mats.attrs:
+                        try:
+                            sel_json = grp_mats.attrs["selected_material"]
+                            sel_dict = json.loads(sel_json)
+                            mat_type = sel_dict.get("type")
+                            if mat_type == MaterialType.CONCRETE:
+                                state.selected_material = ConcreteMaterial.from_dict(sel_dict)
+                            elif mat_type == MaterialType.GENERIC:
+                                state.selected_material = GenericMaterial.from_dict(sel_dict)
+                            logger.debug(f"Selected material loaded: {state.selected_material.name}")
+                        except Exception as e:
+                            logger.error(f"Failed to load selected material: {e}")
 
 
                 # --- LOAD ANALYSIS SETTINGS ---
