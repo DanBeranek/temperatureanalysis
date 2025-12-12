@@ -1,15 +1,129 @@
+import os
+import re
+import unicodedata
 from typing import Optional, List, Dict
+
+from PySide6 import QtCore
+from PySide6.QtGui import QPixmap, QPalette, QCursor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGroupBox, QFormLayout,
-    QDoubleSpinBox, QComboBox, QStackedWidget, QLabel
+    QDoubleSpinBox, QComboBox, QStackedWidget, QLabel, QDialog, QScrollArea, QSizePolicy
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt, QEvent
 
 from temperatureanalysis.model.state import ProjectState, PredefinedParams, CircleParams, BoxParams
 from temperatureanalysis.model.profiles import (
     PROFILE_GROUPS, ALL_PROFILES, OutlineShape, ProfileGroupKey, CustomTunnelShape
 )
 
+from temperatureanalysis.config import ASSETS_PATH
+
+
+PROFILE_IMAGE_MAP = {
+    "Jednokolejný tunel - Konvenční ražba (do 160 km/h)": "jednokolejny_000_160_konvencni_razba",
+    "Jednokolejný tunel - Konvenční ražba (od 161 km/h do 230 km/h)": "jednokolejny_161_230_konvencni_razba",
+    "Jednokolejný tunel - Konvenční ražba (od 231 km/h do 300 km/h)": "jednokolejny_231_300_konvencni_razba",
+    "Jednokolejný tunel - Mechanizovaná ražba (do 160 km/h)": "jednokolejny_000_160_mechanizovana_razba",
+    "Jednokolejný tunel - Mechanizovaná ražba (od 161 km/h do 230 km/h)": "jednokolejny_161_230_mechanizovana_razba",
+    "Jednokolejný tunel - Mechanizovaná ražba (od 231 km/h do 300 km/h)": "jednokolejny_231_300_mechanizovana_razba",
+    "Dvoukolejný tunel - Konvenční ražba (do 160 km/h)": "dvoukolejny_000_160_konvencni_razba",
+    "Dvoukolejný tunel - Konvenční ražba (od 161 km/h do 230 km/h)": "dvoukolejny_161_230_konvencni_razba",
+    "Dvoukolejný tunel - Konvenční ražba (od 231 km/h do 300 km/h)": "dvoukolejny_231_300_konvencni_razba",
+    "Tunel T-7,5, ražený": "silnicni_t7_5_razeny",
+    "Tunel T-8,0, ražený": "silnicni_t8_0_razeny",
+    "Tunel T-9,0, ražený": "silnicni_t9_0_razeny",
+    "Tunel T-9,5, ražený": "silnicni_t9_5_razeny",
+    "Tunel T-8,0, hloubený": "silnicni_t8_0_hloubeny",
+}
+
+
+# ==========================================
+# HELPER WIDGETS
+# ==========================================
+
+class ClickableLabel(QLabel):
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pressed = False
+        self._original_pixmap: Optional[QPixmap] = None
+
+        # Enable responsive resizing:
+        # 1. Minimum width 1 allows the label to shrink below image size
+        self.setMinimumWidth(1)
+        # 2. Ignored size policy tells layout "I don't care about my content's size, just give me space"
+        #    Preferred height allows it to grow vertically to fit aspect ratio
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.setAlignment(Qt.AlignCenter)
+
+    def set_source_pixmap(self, pixmap: Optional[QPixmap]):
+        self._original_pixmap = pixmap
+        if pixmap is None:
+            self.clear()
+        else:
+            self._update_display()
+
+    def resizeEvent(self, event):
+        if self._original_pixmap:
+            self._update_display()
+        super().resizeEvent(event)
+
+    def _update_display(self):
+        if self._original_pixmap and not self._original_pixmap.isNull():
+            w = self.width()
+            if w > 0:
+                # Scale to current width, keeping aspect ratio
+                scaled = self._original_pixmap.scaledToWidth(w, Qt.SmoothTransformation)
+                super().setPixmap(scaled)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._pressed = True
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._pressed and event.button() == Qt.LeftButton and self.rect().contains(event.pos()):
+            self.clicked.emit()
+        self._pressed = False
+        super().mouseReleaseEvent(event)
+
+
+class ScalableLabel(QLabel):
+    """A label that scales its pixmap content to fill available space, maintaining aspect ratio."""
+
+    def __init__(self, pixmap: QPixmap, parent=None):
+        super().__init__(parent)
+        self._original_pixmap = pixmap
+        self.setAlignment(Qt.AlignCenter)
+        # Ignored size policy allows the label to shrink/grow freely based on layout
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.setMinimumSize(1, 1)
+
+    def resizeEvent(self, event):
+        if not self._original_pixmap.isNull():
+            # Scale pixmap to the current size of the widget
+            scaled = self._original_pixmap.scaled(
+                self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            super().setPixmap(scaled)
+        super().resizeEvent(event)
+
+
+class ImagePreviewDialog(QDialog):
+    def __init__(self, image_path: str, title: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(1000, 800)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        pix = QPixmap(image_path)
+        # Use custom ScalableLabel instead of QScrollArea
+        self.image_label = ScalableLabel(pix, self)
+
+        layout.addWidget(self.image_label, 1)  # Expand to fill space
 
 # ==========================================
 # 1. CUSTOM DEFINITION WIDGETS
@@ -156,12 +270,19 @@ class StandardProfileWidget(QWidget):
     def __init__(self, project_state: ProjectState) -> None:
         super().__init__()
         self.project = project_state
+        self.current_image_path: Optional[str] = None
 
-        layout = QFormLayout(self)
+        self.layout_main = QVBoxLayout(self)
+        self.layout_main.setContentsMargins(0, 0, 0, 0)
+
+        # --- Form Container ---
+        self.form_widget = QWidget()
+        self.layout_form = QFormLayout(self.form_widget)
+        self.layout_form.setContentsMargins(0, 0, 0, 0)
 
         self.sub_combo = QComboBox()
         self.sub_combo.currentTextChanged.connect(self.on_profile_changed)
-        layout.addRow("Varianta:", self.sub_combo)
+        self.layout_form.addRow("Varianta:", self.sub_combo)
 
         p = self.project.geometry.parameters
         val_t = p.thickness if isinstance(p, PredefinedParams) else 0.4
@@ -171,7 +292,35 @@ class StandardProfileWidget(QWidget):
         self.thick_spin.setSingleStep(0.05)
         self.thick_spin.setValue(val_t)
         self.thick_spin.valueChanged.connect(self.on_thickness_changed)
-        layout.addRow("Tloušťka [m]:", self.thick_spin)
+        self.layout_form.addRow("Tloušťka [m]:", self.thick_spin)
+
+        self.layout_main.addWidget(self.form_widget)
+
+        # --- Image Preview (Clickable) ---
+        self.lbl_image = ClickableLabel()
+        self.lbl_image.setAlignment(Qt.AlignCenter)
+        self.lbl_image.setMinimumHeight(150)
+        self.lbl_image.setStyleSheet("""
+                    QLabel {
+                        background-color: transparent;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                    }
+                    QLabel:hover {
+                        border: 1px solid #aaa;
+                        background-color: rgba(0,0,0,5);
+                    }
+                """)
+        self.lbl_image.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
+        self.lbl_image.setText("Náhled nedostupný")
+        self.lbl_image.clicked.connect(self.on_image_clicked)
+        self.layout_main.addWidget(self.lbl_image)
+
+        # --- Source Label ---
+        self.lbl_source = QLabel()
+        self.lbl_source.setAlignment(Qt.AlignCenter)
+        self.lbl_source.setWordWrap(True)
+        self.layout_main.addWidget(self.lbl_source)
 
     def populate_profiles(self, profile_list: List[str]) -> None:
         self.sub_combo.blockSignals(True)
@@ -202,6 +351,7 @@ class StandardProfileWidget(QWidget):
             self.project.geometry.parameters.profile_name = text
 
         self.param_changed.emit()
+        self.update_image_preview()
 
     def on_thickness_changed(self, val: float) -> None:
         if isinstance(self.project.geometry.parameters, PredefinedParams):
@@ -213,7 +363,100 @@ class StandardProfileWidget(QWidget):
         if isinstance(self.project.geometry.parameters, PredefinedParams):
             self.thick_spin.setValue(self.project.geometry.parameters.thickness)
             # Combo population handles the name setting
+            self.update_image_preview()
 
+    # --- IMAGE & SOURCE LOGIC ---
+
+    def update_image_preview(self):
+        """Updates the image label based on selection and current theme."""
+        # 1. Update Source Text
+        group_key = self.project.geometry.group_key
+        source_text = ""
+        if group_key == ProfileGroupKey.VL5_ROAD:
+            source_text = (
+                "MINISTERSTVO DOPRAVY. "
+                "<i>Vzorové listy staveb pozemních komunikací: VL 5 – Tunely.</i> "
+                "Praha: Ministerstvo dopravy, 2024.<br>"
+                # "<span style='color: gray; font-size: small;'>"
+                # "Schváleno pod č.j. MD-42962/2023-930/2.</span>"
+            )
+        elif group_key == ProfileGroupKey.RAIL_SINGLE:
+            source_text = (
+                "SŽDC. "
+                "<i>Vzorový list: Světlý tunelový průřez jednokolejného tunelu.</i> "
+                "Praha: SŽDC, s.o., 2010.<br>"
+                # "<span style='color: gray; font-size: small;'>"
+                # "Schváleno pod č.j. S 65027/09 - OTH.</span>"
+            )
+        elif group_key == ProfileGroupKey.RAIL_DOUBLE:
+            source_text = (
+                "SŽDC. "
+                "<i>Vzorový list: Světlý tunelový průřez dvoukolejného tunelu (konvenční ražba).</i> "
+                "Praha: SŽDC, s.o., 2011.<br>"
+                # "<span style='color: gray; font-size: small;'>"
+                # "Schváleno pod č.j. S60135/2011-OTH.</span>"
+            )
+
+        self.lbl_source.setText(source_text)
+
+        # 2. Update Image
+        profile_name = self.sub_combo.currentText()
+        if not profile_name:
+            self.lbl_image.clear()
+            self.current_image_path = None
+            return
+
+        # Determine Theme (Dark/Light)
+        text_color = self.palette().color(QPalette.WindowText)
+        is_dark = text_color.lightness() > 128
+        mode_suffix = "dark" if is_dark else "light"
+
+        # Determine Filename
+        filename = self._resolve_filename(profile_name)
+
+        # Construct Path: assets/profiles/{filename}_{mode}.png
+        image_path = os.path.join(ASSETS_PATH, "profiles", f"{filename}_{mode_suffix}.png")
+        self.current_image_path = image_path
+
+        # Load
+        if os.path.exists(image_path):
+            pix = QPixmap(image_path)
+            self.lbl_image.set_source_pixmap(pix)
+            self.lbl_image.setText("")  # Clear text
+            self.lbl_image.setToolTip("Klikněte pro zvětšení")
+        else:
+            self.lbl_image.set_source_pixmap(
+                None)  # Clears and shows text in ClickableLabel logic if implemented, but here we set text manually
+            self.lbl_image.clear()
+            self.lbl_image.setText(f"Obrázek nenalezen:\n{filename}_{mode_suffix}.png")
+            self.lbl_image.setToolTip("")
+            self.current_image_path = None
+
+    def on_image_clicked(self):
+        if self.current_image_path and os.path.exists(self.current_image_path):
+            title = self.sub_combo.currentText()
+            dlg = ImagePreviewDialog(self.current_image_path, title, self)
+            dlg.exec()
+
+    def _resolve_filename(self, profile_name: str) -> str:
+        """
+        Maps profile display name to a base filename.
+        """
+        if profile_name in PROFILE_IMAGE_MAP:
+            return PROFILE_IMAGE_MAP[profile_name]
+
+        # Auto-Slugify (Fallback)
+        norm = unicodedata.normalize('NFKD', profile_name).encode('ASCII', 'ignore').decode('utf-8')
+        slug = norm.lower()
+        slug = re.sub(r'[^a-z0-9]+', '_', slug)
+        slug = slug.strip('_')
+        return slug
+
+    def changeEvent(self, event: QEvent) -> None:
+        """Detect system theme changes and update image."""
+        if event.type() == QEvent.PaletteChange:
+            self.update_image_preview()
+        super().changeEvent(event)
 
 # ==========================================
 # 3. MAIN GEOMETRY CONTROL PANEL
