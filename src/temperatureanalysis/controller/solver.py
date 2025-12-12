@@ -21,9 +21,12 @@ from PySide6.QtCore import QThread, Signal
 from temperatureanalysis.controller.fea.pre.material import Concrete, Steel, ThermalConductivityBoundary, \
     GenericTabulatedMaterial
 from temperatureanalysis.controller.fea.pre.mesh import Mesh
-from temperatureanalysis.controller.fea.pre.fire_curves import ISO834FireCurve
+from temperatureanalysis.controller.fea.pre.fire_curves import ISO834FireCurve, HCFireCurve, HCMFireCurve, \
+    RABTZTVTrainFireCurve, RABTZTVCarFireCurve, RWSFireCurve, TabulatedFireCurve, Zone, ZonalFireCurve
 from temperatureanalysis.controller.fea.analysis.model import Model
 from temperatureanalysis.controller.fea.solvers.solver import Solver
+from temperatureanalysis.model.bc import StandardFireCurveConfig, StandardCurveType, TabulatedFireCurveConfig, \
+    ZonalFireCurveConfig
 from temperatureanalysis.model.materials import ConcreteMaterial, GenericMaterial
 from temperatureanalysis.model.state import ProjectState
 
@@ -39,8 +42,45 @@ def prepare_simulation_model(project: ProjectState) -> Model:
     """
     logger.info("Initializing FEA Model...")
 
-    # 1. Define BCs & Materials # TODO: Hardcoded for now
-    fire_curve = ISO834FireCurve()
+    # 1. Define BCs & Materials
+    sel_fire_curve = project.selected_fire_curve
+    if isinstance(sel_fire_curve, StandardFireCurveConfig):
+        # Get type of standard curve
+        match sel_fire_curve.curve_type:
+            case StandardCurveType.ISO834:
+                fire_curve = ISO834FireCurve()
+            case StandardCurveType.HC:
+                fire_curve = HCFireCurve()
+            case StandardCurveType.HCM:
+                fire_curve = HCMFireCurve()
+            case StandardCurveType.RABT_TRAIN:
+                fire_curve = RABTZTVTrainFireCurve()
+            case StandardCurveType.RABT_CAR:
+                fire_curve = RABTZTVCarFireCurve()
+            case StandardCurveType.RWS:
+                fire_curve = RWSFireCurve()
+            case _:
+                raise ValueError(f"Unsupported standard fire curve type: {sel_fire_curve.curve_type}")
+    elif isinstance(sel_fire_curve, TabulatedFireCurveConfig):
+        fire_curve = TabulatedFireCurve(
+            name=sel_fire_curve.name,
+            temperatures=np.array(sel_fire_curve.temperatures) + 273.15,  # C to K
+            times=np.array(sel_fire_curve.times)
+        )
+    elif isinstance(sel_fire_curve, ZonalFireCurveConfig):
+        zones = []
+        for i, zone_config in enumerate(sel_fire_curve.zones):
+            zone = Zone(y_min=zone_config.y_min, y_max=zone_config.y_max)
+            fc_zone = TabulatedFireCurve(
+                name=f"{sel_fire_curve.name} - Zone {i+1}",
+                temperatures=np.array(zone_config.curve.temperatures) + 273.15,  # C to K
+                times=np.array(zone_config.curve.times)
+            )
+            zones.append((zone, fc_zone))
+        fire_curve = ZonalFireCurve(zones=zones)
+    else:
+        raise ValueError(f"Unsupported fire curve type: {type(sel_fire_curve)}")
+
 
     # Set material
     sel_mat = project.selected_material
@@ -55,15 +95,15 @@ def prepare_simulation_model(project: ProjectState) -> Model:
         material = GenericTabulatedMaterial(
             name=sel_mat.name,
             densities=[
-                np.array(sel_mat.density.temperatures) - 273.15,  # C to K,
+                np.array(sel_mat.density.temperatures) + 273.15,  # C to K,
                 np.array(sel_mat.density.values)
             ],
             thermal_conductivities=[
-                np.array(sel_mat.conductivity.temperatures) - 273.15,  # C to K,
+                np.array(sel_mat.conductivity.temperatures) + 273.15,  # C to K,
                 np.array(sel_mat.conductivity.values)
             ],
             specific_heat_capacities=[
-                np.array(sel_mat.specific_heat_capacity.temperatures) - 273.15,  # C to K,
+                np.array(sel_mat.specific_heat_capacity.temperatures) + 273.15,  # C to K,
                 np.array(sel_mat.specific_heat_capacity.values)
             ],
             color="blue"
