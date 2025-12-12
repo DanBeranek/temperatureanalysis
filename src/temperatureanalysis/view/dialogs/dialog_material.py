@@ -22,10 +22,298 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from temperatureanalysis.model.materials import (
     Material, MaterialLibrary, MaterialType, ThermalConductivityBoundary,
     GenericMaterial, ConcreteMaterial, MaterialProperty,
-    TemperatureDependentProperty, PROPERTY_METADATA, PropertyMetadata
+    TemperatureDependentProperty, PROPERTY_METADATA, PropertyMetadata, ConcreteConfig
 )
 
 logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# CSV IMPORT DIALOG
+# ==============================================================================
+
+class CsvImportDialog(QDialog):
+    """Dialog for importing CSV data with column mapping and unit selection."""
+
+    def __init__(self, filepath: str, mode: str = "full", parent=None):
+        """
+        Args:
+            filepath: Path to CSV file
+            mode: "full" for complete material import, "single" for single property curve
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        self.filepath = filepath
+        self.mode = mode  # "full" or "single"
+        self.csv_data = []
+        self.headers = []
+
+        self.setWindowTitle("Importovat CSV - Nastavení")
+        self.resize(800, 600)
+
+        self._load_csv_preview()
+        self._init_ui()
+
+    def _load_csv_preview(self):
+        """Load first few rows of CSV for preview."""
+        try:
+            with open(self.filepath, 'r', encoding='utf-8-sig') as f:
+                # Detect delimiter
+                first_line = f.readline()
+                delimiter = ';' if ';' in first_line else ','
+                f.seek(0)
+
+                reader = csv.reader(f, delimiter=delimiter)
+                rows = list(reader)
+
+                if not rows:
+                    raise ValueError("CSV soubor je prázdný")
+
+                # Detect headers (first row has non-numeric values)
+                first_row = rows[0]
+                has_header = not all(self._is_numeric(cell) for cell in first_row if cell.strip())
+
+                if has_header:
+                    self.headers = [cell.strip() for cell in first_row]
+                    self.csv_data = rows[1:20]  # Preview up to 20 rows
+                else:
+                    # Generate default headers
+                    num_cols = len(first_row)
+                    self.headers = [f"Sloupec {i+1}" for i in range(num_cols)]
+                    self.csv_data = rows[:20]  # Preview up to 20 rows
+
+        except Exception as e:
+            logger.error(f"Failed to load CSV preview: {e}")
+            raise
+
+    def _is_numeric(self, value: str) -> bool:
+        """Check if a string can be converted to float."""
+        try:
+            float(value.replace(',', '.'))
+            return True
+        except (ValueError, AttributeError):
+            return False
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Info label
+        info = QLabel("Vyberte sloupce pro jednotlivé vlastnosti:")
+        layout.addWidget(info)
+
+        # Name field (only for full material import)
+        if self.mode == "full":
+            name_group = QGroupBox("Název materiálu")
+            name_layout = QFormLayout(name_group)
+
+            self.edit_name = QLineEdit()
+            # Default name from filename
+            default_name = os.path.splitext(os.path.basename(self.filepath))[0]
+            self.edit_name.setText(default_name)
+            name_layout.addRow("Název:", self.edit_name)
+
+            layout.addWidget(name_group)
+
+        # Column mapping
+        map_group = QGroupBox("Mapování sloupců")
+        map_layout = QFormLayout(map_group)
+
+        self.combo_temp = QComboBox()
+        self.combo_temp.addItem("-- Nevybráno --", None)
+        for i, header in enumerate(self.headers):
+            self.combo_temp.addItem(f"{header}", i)
+        map_layout.addRow("Teplota:", self.combo_temp)
+
+        if self.mode == "full":
+            # Full material import needs all three properties
+            self.combo_cond = QComboBox()
+            self.combo_cond.addItem("-- Nevybráno --", None)
+            for i, header in enumerate(self.headers):
+                self.combo_cond.addItem(f"{header}", i)
+            map_layout.addRow("Tepelná vodivost:", self.combo_cond)
+
+            self.combo_heat = QComboBox()
+            self.combo_heat.addItem("-- Nevybráno --", None)
+            for i, header in enumerate(self.headers):
+                self.combo_heat.addItem(f"{header}", i)
+            map_layout.addRow("Měrná tepelná kapacita:", self.combo_heat)
+
+            self.combo_dens = QComboBox()
+            self.combo_dens.addItem("-- Nevybráno --", None)
+            for i, header in enumerate(self.headers):
+                self.combo_dens.addItem(f"{header}", i)
+            map_layout.addRow("Hustota:", self.combo_dens)
+        else:
+            # Single property import
+            self.combo_value = QComboBox()
+            self.combo_value.addItem("-- Nevybráno --", None)
+            for i, header in enumerate(self.headers):
+                self.combo_value.addItem(f"{header}", i)
+            map_layout.addRow("Hodnota:", self.combo_value)
+
+        layout.addWidget(map_group)
+
+        # Temperature unit selection
+        unit_group = QGroupBox("Jednotky teploty")
+        unit_layout = QHBoxLayout(unit_group)
+        self.combo_temp_unit = QComboBox()
+        self.combo_temp_unit.addItem("°C (Celsius)", "celsius")
+        self.combo_temp_unit.addItem("K (Kelvin)", "kelvin")
+        unit_layout.addWidget(self.combo_temp_unit)
+        layout.addWidget(unit_group)
+
+        # Preview table
+        preview_label = QLabel("Náhled dat:")
+        layout.addWidget(preview_label)
+
+        self.table_preview = QTableWidget()
+        self.table_preview.setColumnCount(len(self.headers))
+        self.table_preview.setHorizontalHeaderLabels(self.headers)
+        self.table_preview.setRowCount(min(10, len(self.csv_data)))
+
+        for row_idx, row_data in enumerate(self.csv_data[:10]):
+            for col_idx, cell_value in enumerate(row_data):
+                self.table_preview.setItem(row_idx, col_idx, QTableWidgetItem(cell_value))
+
+        self.table_preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        layout.addWidget(self.table_preview)
+
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self._on_accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def _on_accept(self):
+        """Validate before accepting the dialog."""
+        try:
+            # Validate name (for full material import)
+            if self.mode == "full":
+                name = self.edit_name.text().strip()
+                if not name:
+                    QMessageBox.warning(self, "Chyba", "Název materiálu nesmí být prázdný.")
+                    return
+
+            # Validate column selections
+            temp_col = self.combo_temp.currentData()
+            if temp_col is None:
+                QMessageBox.warning(self, "Chyba", "Sloupec teploty musí být vybrán.")
+                return
+
+            if self.mode == "full":
+                cond_col = self.combo_cond.currentData()
+                heat_col = self.combo_heat.currentData()
+                dens_col = self.combo_dens.currentData()
+
+                if cond_col is None or heat_col is None or dens_col is None:
+                    QMessageBox.warning(self, "Chyba", "Všechny sloupce vlastností musí být vybrány.")
+                    return
+            else:
+                value_col = self.combo_value.currentData()
+                if value_col is None:
+                    QMessageBox.warning(self, "Chyba", "Sloupec hodnoty musí být vybrán.")
+                    return
+
+            # Try to load data to validate it
+            try:
+                data = self.get_mapped_data()
+                if len(data['temperatures']) < 2:
+                    QMessageBox.warning(self, "Chyba", "CSV musí obsahovat alespoň 2 platné řádky dat.")
+                    return
+            except Exception as e:
+                QMessageBox.critical(self, "Chyba při načítání dat", str(e))
+                return
+
+            # All validation passed - accept dialog
+            self.accept()
+
+        except Exception as e:
+            logger.exception("Validation error in CSV import dialog")
+            QMessageBox.critical(self, "Chyba", f"Neočekávaná chyba: {str(e)}")
+
+    def get_material_name(self) -> str:
+        """Get the material name (only for full material import)."""
+        if self.mode == "full" and hasattr(self, 'edit_name'):
+            return self.edit_name.text().strip()
+        return ""
+
+    def get_mapped_data(self) -> dict:
+        """Extract mapped data based on user selection."""
+        temp_col = self.combo_temp.currentData()
+        temp_unit = self.combo_temp_unit.currentData()
+
+        if temp_col is None:
+            raise ValueError("Sloupec teploty musí být vybrán")
+
+        # Read all data from CSV
+        with open(self.filepath, 'r', encoding='utf-8-sig') as f:
+            first_line = f.readline()
+            delimiter = ';' if ';' in first_line else ','
+            f.seek(0)
+            reader = csv.reader(f, delimiter=delimiter)
+            all_rows = list(reader)
+
+            # Skip header if present
+            has_header = not all(self._is_numeric(cell) for cell in all_rows[0] if cell.strip())
+            data_rows = all_rows[1:] if has_header else all_rows
+
+        result = {
+            'temperatures': [],
+            'temperature_unit': temp_unit
+        }
+
+        if self.mode == "full":
+            cond_col = self.combo_cond.currentData()
+            heat_col = self.combo_heat.currentData()
+            dens_col = self.combo_dens.currentData()
+
+            if cond_col is None or heat_col is None or dens_col is None:
+                raise ValueError("Všechny sloupce vlastností musí být vybrány")
+
+            result['conductivity'] = []
+            result['specific_heat'] = []
+            result['density'] = []
+
+            for row in data_rows:
+                if len(row) <= max(temp_col, cond_col, heat_col, dens_col):
+                    continue
+                try:
+                    temp = float(row[temp_col].replace(',', '.'))
+                    cond = float(row[cond_col].replace(',', '.'))
+                    heat = float(row[heat_col].replace(',', '.'))
+                    dens = float(row[dens_col].replace(',', '.'))
+
+                    result['temperatures'].append(temp)
+                    result['conductivity'].append(cond)
+                    result['specific_heat'].append(heat)
+                    result['density'].append(dens)
+                except (ValueError, IndexError):
+                    continue
+        else:
+            # Single property mode
+            value_col = self.combo_value.currentData()
+            if value_col is None:
+                raise ValueError("Sloupec hodnoty musí být vybrán")
+
+            result['values'] = []
+
+            for row in data_rows:
+                if len(row) <= max(temp_col, value_col):
+                    continue
+                try:
+                    temp = float(row[temp_col].replace(',', '.'))
+                    value = float(row[value_col].replace(',', '.'))
+
+                    result['temperatures'].append(temp)
+                    result['values'].append(value)
+                except (ValueError, IndexError):
+                    continue
+
+        # Convert Kelvin to Celsius if needed
+        if temp_unit == "kelvin":
+            result['temperatures'] = [t - 273.15 for t in result['temperatures']]
+
+        return result
+
 
 # ==============================================================================
 # EDITOR WIDGETS
@@ -288,46 +576,42 @@ class GenericMaterialEditor(QWidget):
 
     def _import_csv_curve(self, tab_page):
         path, _ = QFileDialog.getOpenFileName(self, "Načíst křivku (CSV)", "", "CSV (*.csv);;Text (*.txt)")
-        if not path: return
+        if not path:
+            return
 
         try:
-            data_points = []
-            with open(path, 'r', encoding='utf-8-sig') as f:
-                line = f.readline()
-                delimiter = ';' if ';' in line else ','
-                f.seek(0)
-                reader = csv.reader(f, delimiter=delimiter)
+            # Show CSV import dialog with column mapping (single property mode)
+            import_dialog = CsvImportDialog(path, mode="single", parent=self)
+            if import_dialog.exec() != QDialog.Accepted:
+                return
 
-                for row in reader:
-                    if not row or len(row) < 2: continue
-                    if not row[0][0].isdigit() and not row[0].lstrip('-')[0].isdigit(): continue
-                    try:
-                        t = float(row[0].replace(',', '.'))
-                        v = float(row[1].replace(',', '.'))
-                        data_points.append((t, v))
-                    except ValueError: continue
+            # Get mapped data
+            data = import_dialog.get_mapped_data()
 
-            if data_points:
-                if len(data_points) < 2:
-                    QMessageBox.warning(self, "Chyba", "CSV musí obsahovat alespoň 2 body (teplotní rozsah).")
-                    return
+            if len(data['temperatures']) < 2:
+                QMessageBox.warning(self, "Chyba", "CSV musí obsahovat alespoň 2 body (teplotní rozsah).")
+                return
 
-                data_points.sort(key=lambda x: x[0])
-                table = tab_page.table
-                table.blockSignals(True)
-                table.setRowCount(len(data_points))
-                for i, (t, v) in enumerate(data_points):
-                    table.setItem(i, 0, QTableWidgetItem(str(t)))
-                    table.setItem(i, 1, QTableWidgetItem(str(v)))
+            # Update table
+            table = tab_page.table
+            table.blockSignals(True)
+            try:
+                table.setRowCount(len(data['temperatures']))
+                for i, (t, v) in enumerate(zip(data['temperatures'], data['values'])):
+                    table.setItem(i, 0, QTableWidgetItem(f"{t:.1f}"))
+                    table.setItem(i, 1, QTableWidgetItem(f"{v:.3f}"))
+            finally:
                 table.blockSignals(False)
 
-                self._save_current_prop(tab_page)
-                QMessageBox.information(self, "Info", f"Načteno {len(data_points)} bodů.")
-            else:
-                QMessageBox.warning(self, "Varování", "Nenalezena žádná platná data.")
+            # Save to model
+            self._save_current_prop(tab_page)
+
+            QMessageBox.information(self, "Info",
+                                    f"Načteno {len(data['temperatures'])} bodů z CSV "
+                                    f"({'Kelvin → Celsius' if data['temperature_unit'] == 'kelvin' else 'Celsius'}).")
 
         except Exception as e:
-            logger.error(f"Failed to load CSV property: {e}")
+            logger.exception("Failed to load CSV property")
             QMessageBox.critical(self, "Chyba", str(e))
 
     def _on_tab_changed(self, index: int):
@@ -460,6 +744,18 @@ class MaterialsDialog(QDialog):
         btn_add.clicked.connect(self.on_add_clicked)
         left_layout.addWidget(btn_add)
 
+        btn_copy = QPushButton("Kopírovat Materiál")
+        btn_copy.clicked.connect(self.on_copy_clicked)
+        btn_copy.setEnabled(False)  # Initially disabled
+        left_layout.addWidget(btn_copy)
+        self.btn_copy = btn_copy
+
+        btn_delete = QPushButton("Smazat Materiál")
+        btn_delete.clicked.connect(self.on_delete_clicked)
+        btn_delete.setEnabled(False)  # Initially disabled
+        left_layout.addWidget(btn_delete)
+        self.btn_delete = btn_delete
+
         btn_import = QPushButton("Importovat nový z CSV...")
         btn_import.clicked.connect(self.on_import_clicked)
         left_layout.addWidget(btn_import)
@@ -485,7 +781,7 @@ class MaterialsDialog(QDialog):
         self.combo_type.addItem("Vlastní", MaterialType.GENERIC)
         self.combo_type.addItem("Beton (Eurokód 2)", MaterialType.CONCRETE)
         self.combo_type.currentIndexChanged.connect(self.on_type_changed)
-        form.addRow("Typ modelu:", self.combo_type)
+        form.addRow("Typ materiálu:", self.combo_type)
         center_layout.addLayout(form)
 
         # Editor Stack
@@ -569,13 +865,22 @@ class MaterialsDialog(QDialog):
             self.center_group.setEnabled(False)
 
     def on_selection_changed(self, current, previous):
-        if not current: return
+        if not current:
+            self.btn_copy.setEnabled(False)
+            self.btn_delete.setEnabled(False)
+            return
+
         name = current.text()
         mat = self.working_library.get_material(name)
-        if not mat: return
+        if not mat:
+            self.btn_copy.setEnabled(False)
+            self.btn_delete.setEnabled(False)
+            return
 
         self.current_material = mat
         self.center_group.setEnabled(True)
+        self.btn_copy.setEnabled(True)
+        self.btn_delete.setEnabled(True)
 
         self.edit_name.setText(mat.name)
         self.edit_desc.setText(mat.description)
@@ -608,7 +913,11 @@ class MaterialsDialog(QDialog):
         if new_type == MaterialType.CONCRETE:
             new_mat = ConcreteMaterial(
                 name=self.current_material.name,
-                description=self.current_material.description
+                description=self.current_material.description,
+                initial_density=ConcreteConfig.initial_density,
+                initial_moisture_content=ConcreteConfig.initial_moisture_content,
+                conductivity_boundary=ConcreteConfig.conductivity_boundary
+
             )
         else:
             new_mat = GenericMaterial(
@@ -620,6 +929,8 @@ class MaterialsDialog(QDialog):
         self.current_material = new_mat
 
         self.on_selection_changed(self.list_widget.currentItem(), None)
+
+        self._update_plot()
 
     def on_name_changed(self):
         if not self.current_material: return
@@ -670,22 +981,105 @@ class MaterialsDialog(QDialog):
         items = self.list_widget.findItems(name, Qt.MatchExactly)
         if items: self.list_widget.setCurrentItem(items[0])
 
+    def on_copy_clicked(self):
+        """Copy the currently selected material."""
+        if not self.current_material:
+            QMessageBox.warning(self, "Chyba", "Vyberte materiál ke kopírování.")
+            return
+
+        # Create base name
+        base_name = f"{self.current_material.name} - kopie"
+        name = base_name
+        cnt = 1
+        while self.working_library.get_material(name):
+            name = f"{self.current_material.name} - kopie ({cnt})"
+            cnt += 1
+
+        # Deep copy the material
+        new_mat = copy.deepcopy(self.current_material)
+        new_mat.name = name
+
+        self.working_library.add_material(new_mat)
+        self._refresh_list()
+
+        items = self.list_widget.findItems(name, Qt.MatchExactly)
+        if items:
+            self.list_widget.setCurrentItem(items[0])
+
+    def on_delete_clicked(self):
+        """Delete the currently selected material."""
+        if not self.current_material:
+            QMessageBox.warning(self, "Chyba", "Vyberte materiál ke smazání.")
+            return
+
+        # Confirm deletion
+        reply = QMessageBox.question(
+            self,
+            "Potvrdit smazání",
+            f"Opravdu chcete smazat materiál '{self.current_material.name}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply != QMessageBox.Yes:
+            return
+
+        # Check if this is the last material
+        if len(self.working_library.materials) <= 1:
+            QMessageBox.warning(self, "Chyba", "Nelze smazat poslední materiál v knihovně.")
+            return
+
+        # Delete the material
+        name = self.current_material.name
+        del self.working_library.materials[name]
+        self.current_material = None
+
+        self._refresh_list()
+
     def on_import_clicked(self):
         path, _ = QFileDialog.getOpenFileName(self, "Importovat CSV", "", "CSV (*.csv)")
-        if path:
-            try:
-                name = os.path.splitext(os.path.basename(path))[0]
-                mat = GenericMaterial.from_csv(name, path)
-                if self.working_library.get_material(name):
-                    name += "_imported"
+        if not path:
+            return
+
+        try:
+            # Show CSV import dialog with column mapping
+            import_dialog = CsvImportDialog(path, mode="full", parent=self)
+            if import_dialog.exec() != QDialog.Accepted:
+                return
+
+            # Get mapped data and material name from dialog
+            data = import_dialog.get_mapped_data()
+            name = import_dialog.get_material_name()
+
+            # Create material from mapped data
+            mat = GenericMaterial(name=name, description=f"Importován z {os.path.basename(path)}")
+
+            # Set properties
+            mat.conductivity.set_curve(data['temperatures'], data['conductivity'])
+            mat.specific_heat_capacity.set_curve(data['temperatures'], data['specific_heat'])
+            mat.density.set_curve(data['temperatures'], data['density'])
+
+            # Handle name collision
+            if self.working_library.get_material(name):
+                base_name = name
+                cnt = 1
+                while self.working_library.get_material(name):
+                    name = f"{base_name} ({cnt})"
+                    cnt += 1
                 mat.name = name
-                self.working_library.add_material(mat)
-                self._refresh_list()
-                items = self.list_widget.findItems(mat.name, Qt.MatchExactly)
-                if items: self.list_widget.setCurrentItem(items[0])
-                QMessageBox.information(self, "Úspěch", f"Materiál '{name}' byl importován.")
-            except Exception as e:
-                QMessageBox.critical(self, "Chyba", str(e))
+
+            # Add to library
+            self.working_library.add_material(mat)
+            self._refresh_list()
+            items = self.list_widget.findItems(mat.name, Qt.MatchExactly)
+            if items:
+                self.list_widget.setCurrentItem(items[0])
+
+            QMessageBox.information(self, "Úspěch",
+                                    f"Materiál '{mat.name}' byl importován s {len(data['temperatures'])} body.")
+        except Exception as e:
+            logger.exception("Material import failed")
+            QMessageBox.critical(self, "Chyba", str(e))
 
     # --- PLOTTING SYNC ---
 
@@ -725,9 +1119,7 @@ class MaterialsDialog(QDialog):
         # Fetch Data
         temps, values = self.current_material.get_preview_curve(prop_key)
 
-        logger.info(f"Updating plot for {self.current_material.name} - {prop_key.name}: {len(temps)} points, "
-                    f"temps={temps}, "
-                    f"values={values}.")
+        logger.info(f"Updating plot for {self.current_material.name} - {prop_key.name}: {len(temps)} point.")
 
         plot.clear()
 
