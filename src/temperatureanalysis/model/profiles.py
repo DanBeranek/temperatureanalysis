@@ -517,9 +517,9 @@ ROAD_PROFILES: Dict[str, TunnelProfile] = {
             angle=100.0
         )
     ),
-    "Tunel T-8.0, hloubený": TunnelProfile(
+    "Tunel T-8,0, hloubený": TunnelProfile(
         category=TunnelCategory.ROAD,
-        description="Tunel T-8.0, hloubený",
+        description="Tunel T-8,0, hloubený",
         inner=TunnelOutline(
             shape=OutlineShape.CIRCLE,
             dimensions=[5.3],
