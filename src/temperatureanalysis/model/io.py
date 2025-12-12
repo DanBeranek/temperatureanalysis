@@ -18,6 +18,7 @@ from importlib.metadata import version, PackageNotFoundError
 
 import pyvista as pv
 
+from temperatureanalysis.model.bc import FireCurveConfig
 from temperatureanalysis.model.state import ProjectState, BoxParams, CircleParams, PredefinedParams
 from temperatureanalysis.model.profiles import CustomTunnelShape, ProfileGroupKey
 from temperatureanalysis.model.materials import Material, MaterialType, ConcreteMaterial, GenericMaterial
@@ -97,6 +98,19 @@ class IOManager:
                         grp_mats.create_dataset("selected_material", data=np.void(sel_json.encode('utf-8')))
                     else:
                         grp_mats.attrs["selected_material"] = sel_json
+
+                # --- 2. SAVE FIRE CURVES (BC) ---
+                grp_bc = f.create_group("bc")
+                # Save Library
+                bc_lib_data = {
+                    name: curve.to_dict()
+                    for name, curve in state.fire_library.curves.items()
+                }
+                grp_bc.attrs["library_json"] = json.dumps(bc_lib_data)
+
+                # Save Selected Curve
+                if state.selected_fire_curve:
+                    grp_bc.attrs["selected_curve_json"] = json.dumps(state.selected_fire_curve.to_dict())
 
                 # --- 3. SAVE ANALYSIS SETTINGS ---
                 grp_sim = f.create_group("analysis_settings")
@@ -229,15 +243,30 @@ class IOManager:
                     if sel_json:
                         try:
                             sel_dict = json.loads(sel_json)
-                            mat_type = sel_dict.get("type")
-                            if mat_type == MaterialType.CONCRETE:
-                                state.selected_material = ConcreteMaterial.from_dict(sel_dict)
-                            elif mat_type == MaterialType.GENERIC:
-                                state.selected_material = GenericMaterial.from_dict(sel_dict)
+                            state.selected_material = state.material_library.get_material(sel_dict.get("name"))
                             logger.debug(f"Selected material loaded: {state.selected_material.name}")
                         except Exception as e:
                             logger.error(f"Failed to load selected material: {e}")
 
+                # --- 3. FIRE CURVES (BC) ---
+                if "bc" in f:
+                    grp_bc = f["bc"]
+                    if "library_json" in grp_bc.attrs:
+                        try:
+                            lib_data = json.loads(grp_bc.attrs["library_json"])
+                            for name, d in lib_data.items():
+                                c = FireCurveConfig.from_dict(d)
+                                state.fire_library.add(c)
+                        except Exception as e:
+                            logger.error(f"Failed to load fire curve library: {e}")
+
+                    if "selected_curve_json" in grp_bc.attrs:
+                        try:
+                            d = json.loads(grp_bc.attrs["selected_curve_json"])
+                            state.selected_fire_curve = state.fire_library.get_fire_curve(d.get("name"))
+                            logger.debug(f"Selected fire curve loaded: {state.selected_fire_curve.name}")
+                        except Exception as e:
+                            logger.error(f"Failed to load selected fire curve: {e}")
 
                 # --- LOAD ANALYSIS SETTINGS ---
                 if "analysis_settings" in f:

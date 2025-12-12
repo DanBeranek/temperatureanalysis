@@ -23,6 +23,7 @@ from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 import numpy as np
 
 from temperatureanalysis.controller.mesher import MeshStats
+from temperatureanalysis.model.bc import FireCurveLibrary, FireCurveConfig, StandardFireCurveConfig, StandardCurveType
 from temperatureanalysis.model.profiles import ProfileGroupKey, CustomTunnelShape, TunnelProfile, ALL_PROFILES, \
     TunnelOutline, OutlineShape, TunnelCategory
 from temperatureanalysis.model.materials import MaterialLibrary, Material, ConcreteMaterial
@@ -159,6 +160,10 @@ class ProjectState:
     material_library: MaterialLibrary = field(default_factory=MaterialLibrary)
     selected_material: Optional[Material] = None
 
+    # Fire Curve Management
+    fire_library: FireCurveLibrary = field(default_factory=FireCurveLibrary)
+    selected_fire_curve: Optional[StandardFireCurveConfig] = None
+
     time_step: float = 30.0
     total_time_minutes: float = 180.0
 
@@ -172,6 +177,10 @@ class ProjectState:
         if self.selected_material is None:
             self.selected_material = self.material_library.get_material("Beton (ČSN EN 1992-1-2)")
 
+        # Set default fire curve if none provided
+        if self.selected_fire_curve is None:
+            self.selected_fire_curve = self.fire_library.get_fire_curve("ISO 834, Cellulosic")
+
     def reset(self) -> None:
         """Clear all data for a new project"""
         self.project_name = "Untitled Project"
@@ -179,6 +188,8 @@ class ProjectState:
         self.geometry = GeometryData()
         self.material_library = MaterialLibrary()
         self.selected_material = ConcreteMaterial(name="Beton (ČSN EN 1992-1-2)")
+        self.fire_library = FireCurveLibrary()
+        self.selected_fire_curve = self.fire_library.get_fire_curve("ISO 834, Cellulosic")
         self.mesh_path = None
         self.results = []
         self.time_steps = []
