@@ -123,7 +123,6 @@ class MainWindow(QMainWindow):
 
         # --- CONNECTIONS ---
         self.tab_bar.currentChanged.connect(self.controls_stack.setCurrentIndex)
-        self.geom_panel.data_changed.connect(self.on_data_changed)
 
         # Initial Render
         self.update_visualization()
