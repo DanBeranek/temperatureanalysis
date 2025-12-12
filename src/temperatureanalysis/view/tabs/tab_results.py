@@ -9,7 +9,7 @@ import logging
 
 from temperatureanalysis.model.io import IOManager
 from temperatureanalysis.model.state import ProjectState
-from temperatureanalysis.controller.workers import SolverWorker, prepare_simulation_model
+from temperatureanalysis.controller.solver import SolverWorker, prepare_simulation_model
 
 
 logger = logging.getLogger(__name__)

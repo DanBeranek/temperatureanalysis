@@ -18,11 +18,13 @@ import time
 import logging
 from PySide6.QtCore import QThread, Signal
 
-from temperatureanalysis.controller.fea.pre.material import Concrete, Steel, ThermalConductivityBoundary
+from temperatureanalysis.controller.fea.pre.material import Concrete, Steel, ThermalConductivityBoundary, \
+    GenericTabulatedMaterial
 from temperatureanalysis.controller.fea.pre.mesh import Mesh
 from temperatureanalysis.controller.fea.pre.fire_curves import ISO834FireCurve
 from temperatureanalysis.controller.fea.analysis.model import Model
 from temperatureanalysis.controller.fea.solvers.solver import Solver
+from temperatureanalysis.model.materials import ConcreteMaterial, GenericMaterial
 from temperatureanalysis.model.state import ProjectState
 
 logger = logging.getLogger(__name__)
@@ -39,14 +41,44 @@ def prepare_simulation_model(project: ProjectState) -> Model:
 
     # 1. Define BCs & Materials # TODO: Hardcoded for now
     fire_curve = ISO834FireCurve()
-    concrete = Concrete()
+
+    # Set material
+    sel_mat = project.selected_material
+    if isinstance(sel_mat, ConcreteMaterial):
+        material = Concrete(
+            name=sel_mat.name,
+            initial_density=sel_mat.initial_density,
+            initial_moisture_content=sel_mat.initial_moisture_content,
+            boundary=sel_mat.conductivity_boundary
+        )
+    elif isinstance(sel_mat, GenericMaterial):
+        material = GenericTabulatedMaterial(
+            name=sel_mat.name,
+            densities=[
+                np.array(sel_mat.density.temperatures) - 273.15,  # C to K,
+                np.array(sel_mat.density.values)
+            ],
+            thermal_conductivities=[
+                np.array(sel_mat.conductivity.temperatures) - 273.15,  # C to K,
+                np.array(sel_mat.conductivity.values)
+            ],
+            specific_heat_capacities=[
+                np.array(sel_mat.specific_heat_capacity.temperatures) - 273.15,  # C to K,
+                np.array(sel_mat.specific_heat_capacity.values)
+            ],
+            color="blue"
+        )
+    else:
+        raise ValueError(f"Unsupported material type: {type(sel_mat)}")
+
+    logger.info(f"Initialized material: {material.name}")
 
     # 2. Load mesh
     logger.info(f"Loading mesh from: {project.mesh_path}")
     mesh = Mesh.from_file(
         filename=project.mesh_path,
         physical_surface_to_material_mapping={
-            "Beton": concrete,
+            "Beton": material,
         },
         physical_line_to_fire_curve_mapping={
             "FIRE EXPOSED SIDE": fire_curve
