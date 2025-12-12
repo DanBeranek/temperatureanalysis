@@ -89,68 +89,71 @@ class Material(ABC):
 class GenericTabulatedMaterial(Material):
     """
     Generic material defined by tabulated properties.
+
+    Args:
+        name: The name of the material.
+        color: The color of the material, used for visualization.
+        densities: List of [temperature (K), density (kg/m³)] arrays.
+        thermal_conductivities: List of [temperature (K), thermal conductivity (W/(m·K))] arrays.
+        specific_heat_capacities: List of [temperature (K), specific heat capacity (J/(kg·K))] arrays.
     """
     def __init__(
         self,
         name: str,
         color: str,
-        densities: npt.NDArray[np.float64],
-        temperatures_K: npt.NDArray[np.float64],
-        thermal_conductivities: npt.NDArray[np.float64],
-        specific_heat_capacities: npt.NDArray[np.float64]
+        densities: list[npt.NDArray[np.float64]],
+        thermal_conductivities: list[npt.NDArray[np.float64]],
+        specific_heat_capacities: list[npt.NDArray[np.float64]]
     ):
-        super().__init__(name, color, densities[0])
+        super().__init__(name, color, densities[1][0])
 
-        if not (
-            len(temperatures_K) == len(densities) == len(thermal_conductivities) == len(specific_heat_capacities)
-        ):
-            raise ValueError("All input arrays must have the same length.")
-
-        if not np.all(np.diff(temperatures_K) > 0):
-            raise ValueError("Temperature array must be strictly increasing.")
-
-        if np.any(densities <= 0):
+        if np.any(densities[1] <= 0):
             raise ValueError("Densities must be positive.")
 
-        if np.any(thermal_conductivities <= 0):
+        if np.any(thermal_conductivities[1] <= 0):
             raise ValueError("Thermal conductivities must be positive.")
 
-        if np.any(specific_heat_capacities <= 0):
+        if np.any(specific_heat_capacities[1] <= 0):
             raise ValueError("Specific heat capacities must be positive.")
 
-        if len(temperatures_K) < 2:
-            raise ValueError("At least two data points are required for interpolation.")
-
-        self.temperatures_K = temperatures_K
         self.densities = densities
         self.thermal_conductivities = thermal_conductivities
         self.specific_heat_capacities = specific_heat_capacities
 
     def thermal_conductivity(self, temperature_K: float) -> float:
+        temps = self.thermal_conductivities[0]
+        lambs = self.thermal_conductivities[1]
+
         return np.interp(
             x=temperature_K,
-            xp=self.temperatures_K,
-            fp=self.thermal_conductivities,
-            left=self.thermal_conductivities[0],
-            right=self.thermal_conductivities[-1]
+            xp=temps,
+            fp=lambs,
+            left=lambs[0],
+            right=lambs[-1]
         )
 
     def density(self, temperature_K: float) -> float:
+        temps = self.densities[0]
+        dens = self.densities[1]
+
         return np.interp(
             x=temperature_K,
-            xp=self.temperatures_K,
-            fp=self.densities,
-            left=self.densities[0],
-            right=self.densities[-1]
+            xp=temps,
+            fp=dens,
+            left=dens[0],
+            right=dens[-1]
         )
 
     def specific_heat_capacity(self, temperature_K: float) -> float:
+        temps = self.specific_heat_capacities[0]
+        cps = self.specific_heat_capacities[1]
+
         return np.interp(
             x=temperature_K,
-            xp=self.temperatures_K,
-            fp=self.specific_heat_capacities,
-            left=self.specific_heat_capacities[0],
-            right=self.specific_heat_capacities[-1]
+            xp=temps,
+            fp=cps,
+            left=cps[0],
+            right=cps[-1]
         )
 
 
