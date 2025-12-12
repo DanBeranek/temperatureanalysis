@@ -603,7 +603,7 @@ class FireCurveDialog(QDialog):
         base = "Nova krivka"
         name = base
         i = 1
-        while self.working_library.get(name):
+        while self.working_library.get_fire_curve(name):
             name = f"{base} ({i})"
             i += 1
 
