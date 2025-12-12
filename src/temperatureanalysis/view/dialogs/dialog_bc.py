@@ -523,14 +523,34 @@ class ZonalCurveEditor(QWidget):
     - No default curve (removed per requirements)
     - Zones can only use Tabulated curves (not Standard)
     - Validates zone coverage
+    - Enforces geometric constraints based on tunnel geometry
     """
     dataChanged = Signal()
     selectionChanged = Signal()  # Emitted when zone selection changes to update plot preview
 
-    def __init__(self, parent=None):
+    def __init__(self, project_state, parent=None):
         super().__init__(parent)
+        self.project_state = project_state
         self.current_config: Optional[ZonalFireCurveConfig] = None
         self._init_ui()
+
+    def _get_tunnel_min_max_height(self) -> tuple[float, float]:
+        """
+        Extract the maximum height H of the tunnel from project geometry.
+        Returns the ceiling height that zones must cover up to.
+        """
+        geometry = self.project_state.geometry
+
+        # Try to get resolved profile
+        profile = geometry.get_resolved_profile()
+
+        if profile and profile.y_bounds:
+            # Use the maximum y-bound from the profile
+            return profile.y_bounds
+
+        # Fallback: Default height if geometry not defined
+        logger.warning("Could not determine tunnel height from geometry, using default 7.5m")
+        return 0.0, 7.5  # Default height range
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -582,6 +602,20 @@ class ZonalCurveEditor(QWidget):
 
     def set_config(self, config: ZonalFireCurveConfig):
         self.current_config = config
+
+        # Ensure at least one zone covering [0, H]
+        if not self.current_config.zones:
+            H_min, H_max = self._get_tunnel_min_max_height()
+            default_curve = TabulatedFireCurveConfig(
+                name="ZoneCurve",
+                times=[0, 3600],  # 0 and 60 minutes in seconds
+                temperatures=[20, 800]
+            )
+            self.current_config.zones = [ZoneConfig(y_min=H_min, y_max=H_max, curve=default_curve)]
+            self.table.blockSignals(True)
+            self.table.selectRow(0)
+            self.table.blockSignals(False)
+
         self._load_zones_table()
         # Reset selection details
         self.grp_zone_detail.setEnabled(False)
@@ -618,18 +652,71 @@ class ZonalCurveEditor(QWidget):
         self.table.blockSignals(False)
 
     def _save_zone_geometry(self):
+        """
+        Save zone geometry with validation, clamping, and continuity enforcement.
+        - Clamps values to [0, H]
+        - Ensures y_min < y_max
+        - Enforces continuity between adjacent zones
+        """
         if not self.current_config:
             return
-        # Only update y_min/y_max, curve data is handled by sub-editor
-        for r in range(self.table.rowCount()):
-            try:
-                y1 = float(self.table.item(r, 0).text().replace(',', '.'))
-                y2 = float(self.table.item(r, 1).text().replace(',', '.'))
-                if r < len(self.current_config.zones):
-                    self.current_config.zones[r].y_min = y1
-                    self.current_config.zones[r].y_max = y2
-            except (ValueError, AttributeError):
-                pass
+
+        H_min, H_max = self._get_tunnel_min_max_height()
+
+        # Block signals to prevent recursive updates
+        self.table.blockSignals(True)
+
+        try:
+            # First pass: Read and validate all values
+            new_zones = []
+            for r in range(self.table.rowCount()):
+                if r >= len(self.current_config.zones):
+                    break
+
+                try:
+                    y1 = float(self.table.item(r, 0).text().replace(',', '.'))
+                    y2 = float(self.table.item(r, 1).text().replace(',', '.'))
+
+                    # Clamp to [H_min, H_max]
+                    y1 = max(H_min, min(y1, H_max))
+                    y2 = max(H_min, min(y2, H_max))
+
+                    # Ensure y_min < y_max (minimum gap of 0.1m)
+                    if y2 - y1 < 0.1:
+                        y2 = min(y1 + 0.1, H_max)
+
+                    new_zones.append((y1, y2))
+                except (ValueError, AttributeError):
+                    # Keep existing values on parse error
+                    zone = self.current_config.zones[r]
+                    new_zones.append((zone.y_min, zone.y_max))
+
+            # Second pass: Enforce continuity between adjacent zones
+            for r in range(len(new_zones)):
+                y1, y2 = new_zones[r]
+
+                # Enforce continuity with previous zone
+                if r > 0:
+                    prev_y2 = new_zones[r - 1][1]
+                    # Current zone's y_min must match previous zone's y_max
+                    y1 = prev_y2
+
+                # Enforce continuity with next zone
+                if r < len(new_zones) - 1:
+                    next_y1, next_y2 = new_zones[r + 1]
+                    # Next zone's y_min must match current zone's y_max
+                    new_zones[r + 1] = (y2, next_y2)
+
+                # Update the zone
+                self.current_config.zones[r].y_min = y1
+                self.current_config.zones[r].y_max = y2
+
+            # Reload table to show corrected values
+            self._load_zones_table()
+
+        finally:
+            self.table.blockSignals(False)
+
         self.dataChanged.emit()
 
     def _on_zone_selected(self):
@@ -651,26 +738,83 @@ class ZonalCurveEditor(QWidget):
         self.selectionChanged.emit()
 
     def _add_zone(self):
-        """Add a new zone with a default Tabulated curve."""
-        # Create new zone with Tabulated curve (NOT Standard)
-        new_curve = TabulatedFireCurveConfig(
-            name="ZoneCurve",
-            times=[0, 3600],  # 0 and 60 minutes in seconds
-            temperatures=[20, 800]
-        )
-        z = ZoneConfig(y_min=0.0, y_max=2.0, curve=new_curve)
-        self.current_config.zones.append(z)
+        """
+        Add a new zone by splitting the currently selected zone in half.
+        If no zone is selected, split the first zone.
+        The new zone inherits the curve type from the parent zone.
+        """
+        if not self.current_config.zones:
+            # Should not happen due to set_config enforcement, but handle gracefully
+            H_min, H_max = self._get_tunnel_min_max_height()
+            new_curve = TabulatedFireCurveConfig(
+                name="ZoneCurve",
+                times=[0, 3600],
+                temperatures=[20, 800]
+            )
+            self.current_config.zones = [ZoneConfig(y_min=H_min, y_max=H_max, curve=new_curve)]
+            self._load_zones_table()
+            self.dataChanged.emit()
+            return
+
+        # Get selected zone index, default to first zone if none selected
+        row = self.table.currentRow()
+        if row < 0 or row >= len(self.current_config.zones):
+            row = 0
+
+        # Split the selected zone
+        zone_to_split = self.current_config.zones[row]
+        y_min = zone_to_split.y_min
+        y_max = zone_to_split.y_max
+        y_mid = (y_min + y_max) / 2.0
+
+        # Update the original zone to cover first half
+        zone_to_split.y_max = y_mid
+
+        # Create new zone for second half, inheriting the curve type
+        new_curve = copy.deepcopy(zone_to_split.curve)
+        new_zone = ZoneConfig(y_min=y_mid, y_max=y_max, curve=new_curve)
+
+        # Insert the new zone right after the split zone
+        self.current_config.zones.insert(row + 1, new_zone)
+
         self._load_zones_table()
         self.dataChanged.emit()
 
     def _del_zone(self):
-        """Delete the selected zone."""
+        """
+        Delete the selected zone and merge its space into an adjacent zone.
+        Enforces minimum one zone constraint.
+        """
         row = self.table.currentRow()
-        if row >= 0:
-            del self.current_config.zones[row]
-            self._load_zones_table()
-            self.dataChanged.emit()
-            self.selectionChanged.emit()
+        if row < 0 or row >= len(self.current_config.zones):
+            return
+
+        # Enforce minimum one zone
+        if len(self.current_config.zones) <= 1:
+            QMessageBox.warning(
+                self,
+                "Nelze smazat",
+                "Musí existovat alespoň jedna zóna pokrývající celou výšku tunelu."
+            )
+            return
+
+        # Get the zone to delete
+        zone_to_delete = self.current_config.zones[row]
+
+        # Merge space into adjacent zone
+        if row > 0:
+            # Merge into previous zone (extend its y_max)
+            self.current_config.zones[row - 1].y_max = zone_to_delete.y_max
+        elif row < len(self.current_config.zones) - 1:
+            # This is the first zone, merge into next zone (extend its y_min)
+            self.current_config.zones[row + 1].y_min = zone_to_delete.y_min
+
+        # Delete the zone
+        del self.current_config.zones[row]
+
+        self._load_zones_table()
+        self.dataChanged.emit()
+        self.selectionChanged.emit()
 
 
 # ==============================================================================
@@ -758,7 +902,7 @@ class FireCurveDialog(QDialog):
         self.stack = QStackedWidget()
         self.editor_std = StandardCurveEditor()
         self.editor_tab = TabulatedCurveEditor()
-        self.editor_zone = ZonalCurveEditor()
+        self.editor_zone = ZonalCurveEditor(project_state=self.project_ref)
 
         # Connections for Plot Updates
         self.editor_std.dataChanged.connect(self.update_plot)
