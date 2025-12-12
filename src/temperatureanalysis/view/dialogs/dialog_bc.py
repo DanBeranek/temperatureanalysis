@@ -546,8 +546,8 @@ class ZonalCurveEditor(QWidget):
         l_zones = QVBoxLayout(grp_zones)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Y Min [m]", "Y Max [m]", "Typ Křivky"])
+        self.table.setColumnCount(2)
+        self.table.setHorizontalHeaderLabels(["Y Min [m]", "Y Max [m]"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.itemSelectionChanged.connect(self._on_zone_selected)
@@ -567,10 +567,6 @@ class ZonalCurveEditor(QWidget):
         self.grp_zone_detail = QGroupBox("Nastavení vybrané zóny")
         self.grp_zone_detail.setEnabled(False)
         l_detail = QVBoxLayout(self.grp_zone_detail)
-
-        # Note: Zones can only use Tabulated curves
-        info_zone = QLabel("<i>Zóny mohou používat pouze vlastní (tabulkové) křivky.</i>")
-        l_detail.addWidget(info_zone)
 
         # Tabulated editor for zone
         self.edit_zone_tab = TabulatedCurveEditor()
