@@ -885,15 +885,12 @@ class MaterialsDialog(QDialog):
         self.edit_name.setText(mat.name)
         self.edit_desc.setText(mat.description)
 
-        is_concrete = (mat.type == MaterialType.CONCRETE)
-        self.edit_name.setReadOnly(is_concrete)
-        self.edit_desc.setReadOnly(is_concrete)
-        self.combo_type.setVisible(not is_concrete)
-
         idx = self.combo_type.findData(mat.type)
         self.combo_type.blockSignals(True)
         self.combo_type.setCurrentIndex(idx)
         self.combo_type.blockSignals(False)
+
+        is_concrete = (mat.type == MaterialType.CONCRETE)
 
         if is_concrete:
             self.stack.setCurrentWidget(self.editor_concrete)
