@@ -73,6 +73,18 @@ class TunnelOutline:
             case _:
                 return []
 
+    def get_minimum_height(self) -> float:
+        """Calculate the minimum height of the tunnel outline from floor to top."""
+        primitives = self.get_primitives()
+        points_y = [p.start.y for p in primitives] + [p.end.y for p in primitives]
+        return min(points_y)
+
+    def get_maximum_height(self) -> float:
+        """Calculate the maximum height of the tunnel outline from floor to top."""
+        primitives = self.get_primitives()
+        points_y = [p.start.y for p in primitives] + [p.end.y for p in primitives]
+        return max(points_y)
+
     def _generate_arc(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
         r = self.dimensions[0] + offset
         p_center = Point(self.center_first[0], self.center_first[1])
@@ -238,6 +250,13 @@ class TunnelProfile:
     description: str
     inner: TunnelOutline
     outer: Optional[TunnelOutline] = None
+    y_bounds: Optional[List[float]] = None
+
+    def __post_init__(self):
+        if self.y_bounds is None:
+            min_height = self.inner.get_minimum_height()
+            max_height = self.inner.get_maximum_height()
+            object.__setattr__(self, 'y_bounds', [min_height, max_height])
 
     def get_combined_loop(self, user_thickness: float, assume_symmetric: bool) -> BoundaryLoop:
         """

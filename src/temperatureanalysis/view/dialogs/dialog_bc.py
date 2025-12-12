@@ -292,12 +292,6 @@ class StandardCurveEditor(QWidget):
         for t in StandardCurveType:
             self.combo.addItem(t.value, t)
         self.combo.currentIndexChanged.connect(self._on_change)
-        layout.addRow("Typ křivky:", self.combo)
-
-        # Add info label
-        info_label = QLabel("<i>Standardní křivky jsou pouze pro čtení.</i>")
-        info_label.setWordWrap(True)
-        layout.addRow("", info_label)
 
     def set_config(self, config: StandardFireCurveConfig):
         self.current_config = config
@@ -359,17 +353,33 @@ class TabulatedCurveEditor(QWidget):
 
     def _load_table(self):
         """Load data from model (Seconds) and convert to UI units (Minutes)."""
-        self.table.blockSignals(True)
-        self.table.setRowCount(0)
-        if self.current_config:
-            times_sec = self.current_config.times
-            temps = self.current_config.temperatures
-            self.table.setRowCount(len(times_sec))
-            for i, (t_sec, T) in enumerate(zip(times_sec, temps)):
-                t_min = t_sec / 60.0  # Convert Seconds to Minutes for UI
-                self.table.setItem(i, 0, QTableWidgetItem(f"{t_min:.2f}"))
-                self.table.setItem(i, 1, QTableWidgetItem(f"{T:.1f}"))
-        self.table.blockSignals(False)
+        table = self.table
+        table.blockSignals(True)
+        table.setRowCount(0)
+
+        if not self.current_config or len(self.current_config.temperatures) < 2:
+            # Fallback: Create 20-1200 range based on existing value or 0
+            self.current_config.times = [0.0, 10_800.0]  # 20 min to 3 hours in seconds
+            self.current_config.temperatures = [20.0, 1200.0]
+
+        table.setRowCount(len(self.current_config.times))
+        for i, (t_sec, T) in enumerate(zip(self.current_config.times, self.current_config.temperatures)):
+            t_min = t_sec / 60.0  # Convert Seconds to Minutes for UI
+            table.setItem(i, 0, QTableWidgetItem(f"{t_min:.2f}"))
+            table.setItem(i, 1, QTableWidgetItem(f"{T:.1f}"))
+
+        table.blockSignals(False)
+        # self.table.blockSignals(True)
+        # self.table.setRowCount(0)
+        # if self.current_config:
+        #     times_sec = self.current_config.times
+        #     temps = self.current_config.temperatures
+        #     self.table.setRowCount(len(times_sec))
+        #     for i, (t_sec, T) in enumerate(zip(times_sec, temps)):
+        #         t_min = t_sec / 60.0  # Convert Seconds to Minutes for UI
+        #         self.table.setItem(i, 0, QTableWidgetItem(f"{t_min:.2f}"))
+        #         self.table.setItem(i, 1, QTableWidgetItem(f"{T:.1f}"))
+        # self.table.blockSignals(False)
 
     def _save_data(self):
         """Save data from UI (Minutes) and convert to model units (Seconds)."""
@@ -405,18 +415,57 @@ class TabulatedCurveEditor(QWidget):
         if len(self.current_config.times) < 2:
             logger.warning("Tabulated curve must have at least 2 points")
 
+        self._load_table()
         self.dataChanged.emit()
 
     def _add_row(self):
         """Add a new row to the table."""
         self.table.blockSignals(True)
-        r = self.table.rowCount()
-        self.table.insertRow(r)
-        # Default values in UI units (Minutes)
-        default_time_min = 0.0 if r == 0 else (r * 10.0)  # 0, 10, 20, ... minutes
-        self.table.setItem(r, 0, QTableWidgetItem(f"{default_time_min:.2f}"))
-        self.table.setItem(r, 1, QTableWidgetItem("20.0"))
-        self.table.blockSignals(False)
+        try:
+            # Scrape current UI data
+            points = []
+            for r in range(self.table.rowCount()):
+                try:
+                    t = float(self.table.item(r, 0).text())
+                    T = float(self.table.item(r, 1).text())
+                    points.append((t, T))
+                except (ValueError, AttributeError): pass
+
+            # Calculate insertion point
+            if not points:
+                points = [(20.0, 293.15), (180.0, 800.0)]  # Default points if none exist
+            elif len(points) == 1:
+                points.append((points[0][0] + 10.0, points[0][1] + 100.0))
+            else:
+                # find max gap
+                max_gap = -1.0
+                best_idx = 0
+                for i in range(len(points) - 1):
+                    gap = points[i + 1][0] - points[i][0]
+                    if gap > max_gap:
+                        max_gap = gap
+                        best_idx = i
+
+                # split gap
+                t1, T1 = points[best_idx]
+                t2, T2 = points[best_idx + 1]
+
+                new_t = t1 + max_gap / 2.0
+                ratio = (new_t - t1) / max_gap
+                new_T = T1 + ratio * (T2 - T1)
+
+                points.append((new_t, new_T))
+
+            # sort points
+            points.sort(key=lambda x: x[0])
+            t_list = [p[0] for p in points]
+            T_list = [p[1] for p in points]
+            self.current_config.times = [t * 60.0 for t in t_list]  # Minutes to Seconds
+            self.current_config.temperatures = T_list
+        finally:
+            self.table.blockSignals(False)
+
+        self._load_table()
         self._save_data()
 
     def _del_row(self):
@@ -685,14 +734,14 @@ class FireCurveDialog(QDialog):
         l_center = QVBoxLayout(center)
 
         # Header
-        form = QFormLayout()
+        self.form = QFormLayout()
         self.edit_name = QLineEdit()
         self.edit_name.editingFinished.connect(self.on_name_change)
-        form.addRow("Název:", self.edit_name)
+        self.form.addRow("Název:", self.edit_name)
 
         self.edit_desc = QLineEdit()
         self.edit_desc.editingFinished.connect(self.on_desc_change)
-        form.addRow("Popis:", self.edit_desc)
+        self.form.addRow("Popis:", self.edit_desc)
 
         # Type combobox (will be hidden for Standard curves)
         self.type_row_widget = QWidget()
@@ -706,8 +755,8 @@ class FireCurveDialog(QDialog):
         type_row_layout.addWidget(self.combo_type)
         self.type_row_widget.setLayout(type_row_layout)
 
-        form.addRow("Typ:", self.type_row_widget)
-        l_center.addLayout(form)
+        self.form.addRow("Typ:", self.type_row_widget)
+        l_center.addLayout(self.form)
 
         # Stack
         self.stack = QStackedWidget()
@@ -781,6 +830,7 @@ class FireCurveDialog(QDialog):
         # Enable/disable delete based on whether curve is standard
         is_standard = config.is_standard_curve()
         self.btn_delete.setEnabled(not is_standard)
+        self.form.setRowVisible(self.type_row_widget, False)
 
         # Set name and description
         self.edit_name.setText(config.name)
@@ -798,6 +848,7 @@ class FireCurveDialog(QDialog):
             self.combo_type.blockSignals(True)
             self.combo_type.setCurrentIndex(idx)
             self.combo_type.blockSignals(False)
+            self.form.setRowVisible(self.type_row_widget, True)
 
         # Load appropriate editor
         if config.type == FireCurveType.STANDARD:
@@ -814,7 +865,7 @@ class FireCurveDialog(QDialog):
 
     def on_add(self):
         """Add a new curve (defaults to Tabulated type)."""
-        base = "Nova krivka"
+        base = "Nová křivka"
         name = base
         i = 1
         while self.working_library.get_fire_curve(name):
@@ -1003,3 +1054,16 @@ class FireCurveDialog(QDialog):
             self.accept()
         elif role == QDialogButtonBox.RejectRole:
             self.reject()
+
+    def _update_plot(self):
+        """Updates the plot preview based on the selected fire curve."""
+        curve = self.current_curve
+        if not curve:
+            self.plot_widget.clear()
+            return
+
+        times, temps = get_preview_data(curve)
+
+        self.plot_widget.clear()
+        pen = pg.mkPen(color='r', width=2)
+        self.plot_widget.plot(times, temps, pen=pen)
