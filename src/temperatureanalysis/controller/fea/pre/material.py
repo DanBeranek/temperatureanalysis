@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 
 from temperatureanalysis.controller.fea.pre.material_helpers import (
-    concrete_props_batch, steel_props_batch
+    concrete_props_batch, steel_props_batch, generic_props_batch
 )
 
 from temperatureanalysis.controller.fea.utils import kelvin_to_celsius
@@ -154,6 +154,29 @@ class GenericTabulatedMaterial(Material):
             fp=cps,
             left=cps[0],
             right=cps[-1]
+        )
+
+    def props_batch(self, T_K: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """
+        Vectorized material properties for generic tabulated material.
+
+        Args:
+            T_K: Temperatures in Kelvin at Gauss points, shape (n,).
+
+        Returns:
+            k:    Thermal conductivity per T (W/(m·K)), shape (n,).
+            rhoc: Volumetric heat capacity ρc_p(T) (J/(m³·K)), shape (n,).
+        """
+        # Unpack the stored [temps, values] lists
+        rho_xp, rho_fp = self.densities[0], self.densities[1]
+        k_xp, k_fp = self.thermal_conductivities[0], self.thermal_conductivities[1]
+        cp_xp, cp_fp = self.specific_heat_capacities[0], self.specific_heat_capacities[1]
+
+        return generic_props_batch(
+            T_K,
+            rho_xp, rho_fp,
+            k_xp, k_fp,
+            cp_xp, cp_fp
         )
 
 

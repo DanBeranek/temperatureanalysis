@@ -151,3 +151,31 @@ def steel_props_batch(
         k[i] = ki
         rhoc[i] = rho0 * cp
     return k, rhoc
+
+
+@nb.njit(cache=True, fastmath=True)
+def generic_props_batch(
+    T_K: npt.NDArray[np.float64],
+    rho_xp: npt.NDArray[np.float64], rho_fp: npt.NDArray[np.float64],
+    k_xp: npt.NDArray[np.float64], k_fp: npt.NDArray[np.float64],
+    cp_xp: npt.NDArray[np.float64], cp_fp: npt.NDArray[np.float64]
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """
+    Batched properties for generic tabulated material using linear interpolation.
+
+    Returns:
+        k:    Thermal conductivity per T (W/(m·K)), shape (n,).
+        rhoc: Volumetric heat capacity ρc_p(T) (J/(m³·K)), shape (n,).
+    """
+    # Numba supports np.interp on arrays.
+    # Note: Default behavior of np.interp matches the 'left'/'right' clamping
+    # required (returns fp[0] or fp[-1] if out of bounds).
+
+    k = np.interp(T_K, k_xp, k_fp)
+    rho = np.interp(T_K, rho_xp, rho_fp)
+    cp = np.interp(T_K, cp_xp, cp_fp)
+
+    # Calculate volumetric heat capacity in-place (fused multiply)
+    rhoc = rho * cp
+
+    return k, rhoc
