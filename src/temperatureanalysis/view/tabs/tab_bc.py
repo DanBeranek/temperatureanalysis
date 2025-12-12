@@ -62,6 +62,7 @@ class BCControlPanel(QWidget):
 
         # Initial Load
         self.refresh_combo()
+        self.load_from_state()
 
     def open_manager_modal(self) -> None:
         dlg = FireCurveDialog(self.project, self.parent_window)
@@ -103,6 +104,16 @@ class BCControlPanel(QWidget):
         if config:
             self.project.selected_fire_curve = config
             self._update_info()
+
+    def load_from_state(self):
+        """Loads the current selection from the project state."""
+        self.refresh_combo()
+        curve = self.project.selected_fire_curve
+        if curve:
+            idx = self.curve_combo.findText(curve.name)
+            if idx >= 0:
+                self.curve_combo.setCurrentIndex(idx)
+        self._update_info()
 
     def _update_info(self):
         """Updates the info label with details about the selected fire curve."""

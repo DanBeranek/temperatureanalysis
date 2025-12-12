@@ -46,6 +46,16 @@ class MaterialsControlPanel(QWidget):
 
         # Initial Load
         self.refresh_combo()
+        self.load_from_state()
+
+    def load_from_state(self):
+        """Load selected material from project state into the combo box."""
+        self.refresh_combo()
+        if self.project.selected_material:
+            mat_name = self.project.selected_material.name
+            idx = self.mat_combo.findText(mat_name)
+            if idx >= 0:
+                self.mat_combo.setCurrentIndex(idx)
 
     def open_manager_modal(self) -> None:
         dlg = MaterialsDialog(self.project, self.parent_window)

@@ -329,6 +329,20 @@ class MainWindow(QMainWindow):
             self.mesh_panel.update_status_from_state()
             self.act_export_mesh.setEnabled(True)
 
+        # Load BC Panel
+        self.bc_panel.blockSignals(True)
+        try:
+            self.bc_panel.load_from_state()
+        finally:
+            self.bc_panel.blockSignals(False)
+
+        # Load Materials Panel
+        self.mat_panel.blockSignals(True)
+        try:
+            self.mat_panel.load_from_state()
+        finally:
+            self.mat_panel.blockSignals(False)
+
         # 3. Update Results (will trigger visualization if results exists)
         self.results_panel.load_from_state()
 
