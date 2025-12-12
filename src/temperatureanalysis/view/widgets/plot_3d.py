@@ -147,6 +147,7 @@ class PyVistaWidget(QWidget):
 
         # --- 5. RESET CAMERA ---
         if reset_camera:
+            self._grid_manager.clear_actors()
             self.plotter.reset_camera()
             self._grid_manager.update_grid_from_camera()
 
