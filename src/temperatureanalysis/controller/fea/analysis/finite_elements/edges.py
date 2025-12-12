@@ -119,7 +119,8 @@ class LineElement(ABC):
         Returns:
             Temperature in Kelvin.
         """
-        return self.fire_curve.get_temperature(time=time)
+        mid_point = self.shape_functions(iso_coord=0.0) @ np.array([self.x, self.y]).T
+        return self.fire_curve.get_temperature(time=time, position=mid_point)
 
     def get_integration_scheme(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
@@ -249,22 +250,22 @@ class Line3(LineElement):
         raise NotImplementedError("Jacobian for Line3 are not implemented yet.")
 
 
-if __name__ == "__main__":
-    # Example usage of a Line2 element
-    node1 = Node(index=1, coords=[0.0, 0.0])
-    node2 = Node(index=2, coords=[0.1, 0.0])
-
-    line_element = Line2(index=1, tag=101, nodes=[node1, node2])
-
-    T = 50 + 273.15  # Example temperature in Kelvin
-
-    print(line_element)
-    print("Shape functions at iso_coord=0:", line_element.shape_functions(iso_coord=0))
-    print("Shape functions at iso_coord=-1:", line_element.shape_functions(iso_coord=-1))
-    print("Shape functions at iso_coord=1:", line_element.shape_functions(iso_coord=1))
-    print("Jacobian matrix:", line_element.jacobian_matrix)
-    print(f"Load vector for temperature {T}K:", line_element.get_load_vector(temperature=T))
-    print(f"Load vector tangent for temperature {T}K:", line_element.get_load_vector_tangent())
+# if __name__ == "__main__":
+    # # Example usage of a Line2 element
+    # node1 = Node(index=1, coords=[0.0, 0.0])
+    # node2 = Node(index=2, coords=[0.1, 0.0])
+    #
+    # line_element = Line2(index=1, tag=101, nodes=[node1, node2])
+    #
+    # T = 50 + 273.15  # Example temperature in Kelvin
+    #
+    # print(line_element)
+    # print("Shape functions at iso_coord=0:", line_element.shape_functions(iso_coord=0))
+    # print("Shape functions at iso_coord=-1:", line_element.shape_functions(iso_coord=-1))
+    # print("Shape functions at iso_coord=1:", line_element.shape_functions(iso_coord=1))
+    # print("Jacobian matrix:", line_element.jacobian_matrix)
+    # print(f"Load vector for temperature {T}K:", line_element.get_load_vector(temperature=T))
+    # print(f"Load vector tangent for temperature {T}K:", line_element.get_load_vector_tangent())
 
 
 

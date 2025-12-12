@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +9,9 @@ import matplotlib.pyplot as plt
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-
+# ==========================================
+# ABSTRACT CLASS FOR FIRE CURVES
+# ==========================================
 class FireCurve(ABC):
     """
     Abstract base class for fire curves.
@@ -17,12 +19,18 @@ class FireCurve(ABC):
     NAME: str = "Fire Curve"
 
     @abstractmethod
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
         Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
             Temperature in Kelvin.
@@ -52,6 +60,9 @@ class FireCurve(ABC):
         plt.xlim(-5, 185)
         plt.show()
 
+# ==========================================
+# STANDARD CURVES (Position Independent)
+# ==========================================
 
 class ISO834FireCurve(FireCurve):
     """
@@ -59,15 +70,21 @@ class ISO834FireCurve(FireCurve):
     """
     NAME = "ISO 834, Cellulosic"
 
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
-        Get the temperature according to the ISO 834 fire curve.
+        Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
-            Temperature in K at time t.
+            Temperature in Kelvin.
         """
         return 273.15 + 20 + 345 * np.log10(8 * (time/60) + 1)
 
@@ -78,15 +95,21 @@ class HCFireCurve(FireCurve):
     """
     NAME = "HydroCarbon"
 
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
-        Get the temperature according to the HydroCarbon fire curve.
+        Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
-            Temperature in K at time t.
+            Temperature in Kelvin.
         """
         return 273.15 + 20 + 1080 * (1 - 0.325 * np.exp(-0.167 * (time / 60)) - 0.675 * np.exp(-2.5 * (time / 60)))
 
@@ -96,15 +119,21 @@ class HCMFireCurve(FireCurve):
     """
     NAME = "Modified HydroCarbon"
 
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
-        Get the temperature according to the HCM fire curve.
+        Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
-            Temperature in K at time t.
+            Temperature in Kelvin.
         """
         return 273.15 + 20 + 1280 * (1 - 0.325 * np.exp(-0.167 * (time / 60)) - 0.675 * np.exp(-2.5 * (time / 60)))
 
@@ -118,12 +147,18 @@ class RABTZTVTrainFireCurve(FireCurve):
 
     TEMPERATURES = 273.15 + np.array([15.0, 1200.0, 1200.0, 15.0])  # Temperatures in Kelvin
 
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
-        Get the temperature according to the RABT-ZTV (train) fire curve.
+        Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
             Temperature in Kelvin.
@@ -146,12 +181,18 @@ class RABTZTVCarFireCurve(FireCurve):
 
     TEMPERATURES = 273.15 + np.array([15.0, 1200.0, 1200.0, 15.0])  # Temperatures in Kelvin
 
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
-        Get the temperature according to the RABT-ZTV (train) fire curve.
+        Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
             Temperature in Kelvin.
@@ -175,12 +216,18 @@ class RWSFireCurve(FireCurve):
 
     TEMPERATURES = 273.15 + np.array([20.0, 890.0, 1140.0, 1200.0, 1300.0, 1350.0, 1300.0, 1200.0, 1200.0])  # Temperatures in Kelvin
 
-    def get_temperature(self, time: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[float | npt.NDArray[np.float64]] = None,
+    ) -> float | npt.NDArray[np.float64]:
         """
-        Get the temperature according to the RWS (Rijkswaterstaat)) fire curve.
+        Get the temperature at a given time.
 
         Args:
             time: Time in seconds.
+            position: Y-coordinate(s) in meters (optional,
+                      for position-dependent curves).
 
         Returns:
             Temperature in Kelvin.
@@ -193,6 +240,123 @@ class RWSFireCurve(FireCurve):
             return float(temperatures[0])
         return temperatures
 
+
+class TabulatedFireCurve(FireCurve):
+    """
+    User-defined fire curve based on tabulated time-temperature points.
+    """
+
+    def __init__(
+        self,
+        times: list[float] | npt.NDArray[np.float64],
+        temperatures: list[float] | npt.NDArray[np.float64],
+        name: str = "Tabulated Fire Curve"
+    ):
+        """
+        Args:
+            times: Array of time points in seconds.
+            temperatures: Array of corresponding temperatures in Kelvin.
+            name: Display name for the curve.
+        """
+        times_arr = np.array(times, dtype=np.float64)
+        temps_arr = np.array(temperatures, dtype=np.float64)
+
+        if times_arr.shape != temps_arr.shape:
+            raise ValueError("Times and temperatures must have the same length.")
+
+        # Ensure sorted by time
+        sorter = np.argsort(times_arr)
+        self.times = times_arr[sorter]
+        self.temperatures = temps_arr[sorter]
+        self.NAME = name
+
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[npt.NDArray[np.float64]] = None
+    ) -> float | npt.NDArray[np.float64]:
+        """
+        Get the temperature by linear interpolation.
+        """
+        t_array = np.atleast_1d(time)
+        temps = np.interp(
+            t_array, self.times, self.temperatures,
+            left=293.15, right=293.15
+        )
+
+        if np.isscalar(time):
+            return float(temps[0])
+        return temps
+
+# ==========================================
+# ZONAL DEFINITION
+# ==========================================
+
+class Zone:
+    """
+    Defines a vertical zone in the tunnel (Height/Y-axis based).
+    """
+
+    def __init__(self, y_min: float = -np.inf, y_max: float = np.inf):
+        """
+        Args:
+            y_min: Lower height bound.
+            y_max: Upper height bound.
+        """
+        self.y_min = y_min
+        self.y_max = y_max
+
+    def contains(self, position: npt.NDArray[np.float64]) -> bool | npt.NDArray[np.bool_]:
+        """
+        Checks if position is within this height zone.
+        Handles both single point (3,) and vectorized points (N, 3).
+        Assumes Y is at index 1.
+        """
+        if position.ndim == 1:
+            y = position[1]
+        else:
+            y = position[:, 1]
+
+        return (y >= self.y_min) & (y <= self.y_max)
+
+
+class ZonalFireCurve(FireCurve):
+    """
+    A composite fire curve that applies different curves based on the Y-coordinate.
+    """
+    NAME = "Zonal Fire Curve"
+
+    def __init__(self, zones: list[tuple[Zone, FireCurve]]):
+        self.zones = zones
+
+    def add_zone(self, zone: Zone, curve: FireCurve):
+        self.zones.append((zone, curve))
+
+    def get_temperature(
+        self,
+        time: float | npt.NDArray[np.float64],
+        position: Optional[npt.NDArray[np.float64]] = None
+    ) -> float | npt.NDArray[np.float64]:
+        """
+        Calculates temperature based on spatial zones.
+
+        Note:
+        - If position is None, returns default curve temperature.
+        - If position is provided, checks zones based on Y-coord.
+        """
+        if position is None:
+            # No position provided, raise error
+            raise ValueError("Position must be provided for ZonalFireCurve.")
+
+        # Case: scalar time, single position
+        if np.isscalar(time) and position.ndim == 1:
+            for zone, curve in self.zones:
+                if zone.contains(position):
+                    return curve.get_temperature(time, position)
+            # If no zone matched, raise error
+            raise ValueError("Position does not fall within any defined zone.")
+
+        raise NotImplementedError("Vectorized time/position handling not implemented yet.")
 
 if __name__ == "__main__":
     fire_curves = [
