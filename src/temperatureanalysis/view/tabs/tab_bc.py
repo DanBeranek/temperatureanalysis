@@ -5,13 +5,16 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QListWidget, QGroupBox,
     QHBoxLayout, QComboBox, QMessageBox, QFrame
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.model.bc import FireCurveLibrary, FireCurveType
 from temperatureanalysis.view.dialogs.dialog_bc import FireCurveDialog
 
 class BCControlPanel(QWidget):
+    data_changed = Signal()
+    boundary_condition_changed = Signal()
+
     def __init__(self, project_state: ProjectState, parent_window=None) -> None:
         super().__init__()
         self.project = project_state
@@ -66,7 +69,9 @@ class BCControlPanel(QWidget):
 
     def open_manager_modal(self) -> None:
         dlg = FireCurveDialog(self.project, self.parent_window)
-        dlg.exec()
+        if dlg.exec():
+            # Dialog accepted - fire curves may have changed
+            self.data_changed.emit()
         self.refresh_combo()
 
     def refresh_combo(self):
@@ -104,6 +109,8 @@ class BCControlPanel(QWidget):
         if config:
             self.project.selected_fire_curve = config
             self._update_info()
+            self.boundary_condition_changed.emit()
+            self.data_changed.emit()
 
     def load_from_state(self):
         """Loads the current selection from the project state."""

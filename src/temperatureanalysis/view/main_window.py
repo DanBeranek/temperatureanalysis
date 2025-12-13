@@ -110,6 +110,16 @@ class MainWindow(QMainWindow):
         # 1. Geometry Changed -> Invalidate Mesh + Update View
         self.geom_panel.data_changed.connect(self.on_data_changed)
 
+        # Materials changed -> set modified
+        self.mat_panel.data_changed.connect(lambda: self.set_modified(True))
+        self.mat_panel.material_changed.connect(lambda: self.set_modified(True))
+        self.mat_panel.material_changed.connect(self._invalidate_results)
+
+        # Boundary conditions changed -> set modified
+        self.bc_panel.data_changed.connect(lambda: self.set_modified(True))
+        self.bc_panel.boundary_condition_changed.connect(lambda: self.set_modified(True))
+        self.bc_panel.boundary_condition_changed.connect(self._invalidate_results)
+
         # 2. Mesh Generated -> Update View + Set Modified
         self.mesh_panel.mesh_generated.connect(self.on_mesh_generated)
 
@@ -120,9 +130,6 @@ class MainWindow(QMainWindow):
         # --- ACTIONS & MENUS ---
         self._create_actions()
         self._create_menus()
-
-        # --- CONNECTIONS ---
-        self.tab_bar.currentChanged.connect(self.controls_stack.setCurrentIndex)
 
         # Initial Render
         self.update_visualization()
@@ -407,3 +414,4 @@ class MainWindow(QMainWindow):
             self.project.time_steps = []
             self.results_panel.reset_status()
             self.act_export_vtu.setEnabled(False)
+            self.visualizer.update_scene(project_state=self.project, reset_camera=False)

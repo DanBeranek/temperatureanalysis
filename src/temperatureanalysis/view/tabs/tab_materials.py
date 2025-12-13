@@ -1,6 +1,7 @@
 """
 Materials Control Panel
 """
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QGroupBox,
     QComboBox, QMessageBox
@@ -10,6 +11,9 @@ from temperatureanalysis.model.materials import MaterialLibrary
 from temperatureanalysis.view.dialogs.dialog_material import MaterialsDialog
 
 class MaterialsControlPanel(QWidget):
+    data_changed = Signal()
+    material_changed = Signal()
+
     def __init__(self, project_state: ProjectState, parent_window=None) -> None:
         super().__init__()
         self.project = project_state
@@ -59,7 +63,9 @@ class MaterialsControlPanel(QWidget):
 
     def open_manager_modal(self) -> None:
         dlg = MaterialsDialog(self.project, self.parent_window)
-        dlg.exec()
+        if dlg.exec():
+            # Dialog accepted - materials may have changed
+            self.data_changed.emit()
         self.refresh_combo()
 
     def refresh_combo(self):
@@ -95,3 +101,5 @@ class MaterialsControlPanel(QWidget):
         mat = self.project.material_library.get_material(material_name)
         if mat:
             self.project.selected_material = mat
+            self.material_changed.emit()
+            self.data_changed.emit()
