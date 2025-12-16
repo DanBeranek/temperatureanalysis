@@ -62,6 +62,13 @@ class PointCache:
         self.cache[key] = tag
         return tag
 
+    def get(self, pt: Point) -> int:
+        key = (round(float(pt.x), 6), round(float(pt.y), 6))
+        if key in self.cache:
+            return self.cache[key]
+        else:
+            raise ValueError("Point not in cache!")
+
 
 class GmshMesher:
     def __init__(self):
@@ -183,6 +190,8 @@ class GmshMesher:
             for i, pt_tag in enumerate(tags_inner_points):
                 gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - O{i+1}")
 
+            tags_rebar_points.insert(0, point_cache.get(rebar_pts[0]))
+            tags_rebar_points.append(point_cache.get(rebar_pts[-1]))
             for i, pt_tag in enumerate(tags_rebar_points):
                 gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1}")
 

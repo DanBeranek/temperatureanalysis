@@ -86,6 +86,7 @@ class PyVistaWidget(QWidget):
         # --- Visibility state ---
         self._visible_geometry: bool = True
         self._visible_mesh: bool = True
+        self._visible_thermocouples: bool = True
         self._visible_results: bool = True
 
         # --- Regrid logic ---
@@ -214,6 +215,23 @@ class PyVistaWidget(QWidget):
             self.btn_vis_res.blockSignals(True)
             self.btn_vis_res.setChecked(visible)
             self.btn_vis_res.blockSignals(False)
+
+        self._apply_visibility()
+        if render:
+            self.plotter.render()
+
+    def set_thermocouples_visible(self, visible: bool, render: bool = True) -> None:
+        """
+        Public slot to toggle thermocouple visibility.
+        Args:
+            visible: True to show, False to hide.
+            render: If True, triggers a re-render immediately. Set False for batch updates.
+        """
+        self._visible_thermocouples = visible
+        if self.btn_vis_tc.isChecked() != visible:
+            self.btn_vis_tc.blockSignals(True)
+            self.btn_vis_tc.setChecked(visible)
+            self.btn_vis_tc.blockSignals(False)
 
         self._apply_visibility()
         if render:
@@ -608,9 +626,9 @@ class PyVistaWidget(QWidget):
         if self._mesh_wireframe_actor:
             self._mesh_wireframe_actor.SetVisibility(self._visible_mesh)
 
-        # Thermocouples (always visible with mesh)
+        # Thermocouples
         for a in self._thermocouple_actors:
-            if a: a.SetVisibility(self._visible_mesh)
+            if a: a.SetVisibility(self._visible_thermocouples)
 
         # Results
         if self._result_heatmap_actor:
@@ -683,12 +701,14 @@ class PyVistaWidget(QWidget):
         # Define buttons and link to toggle slots
         self.btn_vis_geo = make_btn(QStyle.SP_FileIcon, self.on_toggle_geometry, "Zobrazit Geometrii")
         self.btn_vis_mesh = make_btn(QStyle.SP_FileDialogListView, self.on_toggle_mesh, "Zobrazit Síť")
+        self.btn_vis_tc = make_btn(QStyle.SP_DialogYesButton, self.on_toggle_thermocouples, "Zobrazit Termočlánky")
         self.btn_vis_res = make_btn(QStyle.SP_DialogApplyButton, self.on_toggle_results, "Zobrazit Výsledky",
                                     default_state=False)
 
         # Sync internal state
         self._visible_geometry = self.btn_vis_geo.isChecked()
         self._visible_mesh = self.btn_vis_mesh.isChecked()
+        self._visible_thermocouples = self.btn_vis_tc.isChecked()
         self._visible_results = self.btn_vis_res.isChecked()
 
         self.overlay_widget.adjustSize()
@@ -701,6 +721,11 @@ class PyVistaWidget(QWidget):
 
     def on_toggle_mesh(self, checked: bool):
         self._visible_mesh = checked
+        self._apply_visibility()
+        self.plotter.render()
+
+    def on_toggle_thermocouples(self, checked: bool):
+        self._visible_thermocouples = checked
         self._apply_visibility()
         self.plotter.render()
 

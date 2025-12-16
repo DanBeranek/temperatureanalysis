@@ -348,10 +348,22 @@ class TunnelProfile:
         end = inner_ents_cw[0].start
 
         if assume_symmetric:
-            vec = Vector(0, rebar_depth)
+            # POINT AT THE TOP
+            middle = end + Vector(0, rebar_depth)
         else:
-            vec = Vector(-rebar_depth, 0)
-        middle = end + vec
+            # NEED TO CALCULATE POINT AT THE LEFT
+            first_ent = inner_ents_cw[0]
+            if isinstance(first_ent, Line):
+                # IF IT'S JUST A LINE, IT'S EASY
+                middle = end + Vector(0, -rebar_depth)
+            elif isinstance(first_ent, Arc):
+                # THAT'S MORE COMPLEX, NEED TO FIND CIRCLE CENTER
+                middle = line_circle_intersection(
+                    point=end,
+                    vector=Vector(-1000, 0),
+                    circle=Circle(radius=first_ent.radius+rebar_depth, center=first_ent.center),
+                    as_segment=True
+                )[0]
 
         loop.add_entities(
             [
@@ -374,9 +386,22 @@ class TunnelProfile:
         # D. Connect Right Floor
         # Add a Point in the position of the thermocouple in rebar
         start = inner_ents_cw[-1].end
-        vec = Vector(rebar_depth, 0)
-        middle = start + vec
         end = outer_ents[0].start
+
+        # NEED TO CALCULATE POINT AT THE RIGHT
+        last_ent = inner_ents_cw[-1]
+        if isinstance(last_ent, Line):
+            # IF IT'S JUST A LINE, IT'S EASY
+            middle = end + Vector(rebar_depth, 0)
+        elif isinstance(last_ent, Arc):
+            # THAT'S MORE COMPLEX, NEED TO FIND CIRCLE CENTER
+            middle = line_circle_intersection(
+                point=start,
+                vector=Vector(1000, 0),
+                circle=Circle(radius=last_ent.radius+rebar_depth, center=last_ent.center),
+                as_segment=True
+            )[0]
+
         loop.add_entities(
             [
                 Line(
