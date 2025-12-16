@@ -551,35 +551,43 @@ class PyVistaWidget(QWidget):
         if not thermocouples:
             return
 
-        offset = 0.01  # Slightly above geometry
-        # Add each thermocouple as a point with label
+        # Batch all points and labels for faster rendering
+        points = []
+        labels = []
+
         for name, (x, y) in thermocouples.items():
-            # Create point
-            point = np.array([[x, y, 0.02]])  # Slightly above geometry
+            points.append([x, y, 0.02])  # Slightly above geometry
+            labels.append(name)
 
-            # Add point marker
-            point_actor = self.plotter.add_points(
-                point,
-                color='red',
-                point_size=8,
-                render_points_as_spheres=True
-            )
-            self._thermocouple_actors.append(point_actor)
+        if not points:
+            return
 
-            # Add label
-            label_actor = self.plotter.add_point_labels(
-                point+offset,
-                [name],
-                font_size=10,
-                text_color='black',
-                fill_shape=True,
-                shape_color='white',
-                shape_opacity=0.8,
-                always_visible=True,
-                show_points=False,
-                bold=False
-            )
-            self._thermocouple_actors.append(label_actor)
+        # Convert to numpy array
+        points_array = np.array(points)
+
+        # Add all points at once
+        point_actor = self.plotter.add_points(
+            points_array,
+            color='red',
+            point_size=8,
+            render_points_as_spheres=True
+        )
+        self._thermocouple_actors.append(point_actor)
+
+        # Add all labels at once
+        label_actor = self.plotter.add_point_labels(
+            points_array+0.01,
+            labels,
+            font_size=10,
+            text_color='black',
+            fill_shape=True,
+            shape_color='white',
+            shape_opacity=0.8,
+            always_visible=True,
+            show_points=False,
+            bold=False
+        )
+        self._thermocouple_actors.append(label_actor)
 
     def _clear_thermocouple_layer(self):
         """Removes thermocouple actors."""
