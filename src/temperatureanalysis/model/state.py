@@ -171,6 +171,7 @@ class ProjectState:
     total_time_minutes: float = 180.0
 
     mesh_path: Optional[str] = None
+    thermocouple_distance: float = 0.2  # Distance between thermocouple points [m]
 
     results: list[npt.NDArray] = field(default_factory=list)
     time_steps: list[float] = field(default_factory=list)
@@ -194,6 +195,7 @@ class ProjectState:
         self.fire_library = FireCurveLibrary()
         self.selected_fire_curve = self.fire_library.get_fire_curve("ISO 834, Cellulosic")
         self.mesh_path = None
+        self.thermocouple_distance = 0.2
         self.results = []
         self.time_steps = []
         self.time_step = 30.0

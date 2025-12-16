@@ -104,7 +104,7 @@ class GmshMesher:
             loop = self._get_boundary_loop(
                 project=project,
                 assume_symmetric=True,
-                max_distance_between_points=0.05
+                max_distance_between_points=project.thermocouple_distance
             )
 
             if not loop or not loop.entities:
@@ -158,7 +158,7 @@ class GmshMesher:
             rebar_pts = self._get_rebar_points(
                 project=project,
                 assume_symmetric=True,
-                max_distance_between_points=0.2
+                max_distance_between_points=project.thermocouple_distance
             )
             for pt in rebar_pts[1:-1]:  # Skip first and last (on boundary)
                 pt_tag = point_cache.get_or_create(pt, base_lc)

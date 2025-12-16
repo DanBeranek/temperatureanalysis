@@ -52,6 +52,15 @@ class MeshControlPanel(QWidget):
         self.lc_outer_spin.setEnabled(False)  # Disabled by default
         form.addRow("Velikost elementu (Vnější):", self.lc_outer_spin)
 
+        # 4. Thermocouple Distance
+        self.thermocouple_distance_spin = QDoubleSpinBox()
+        self.thermocouple_distance_spin.setRange(0.05, 1.0)
+        self.thermocouple_distance_spin.setSingleStep(0.05)
+        self.thermocouple_distance_spin.setValue(self.project.thermocouple_distance)
+        self.thermocouple_distance_spin.setSuffix(" m")
+        self.thermocouple_distance_spin.valueChanged.connect(self.on_thermocouple_distance_changed)
+        form.addRow("Vzdálenost mezi termočlánky:", self.thermocouple_distance_spin)
+
         layout.addWidget(grp)
 
         # --- Actions ---
@@ -106,6 +115,10 @@ class MeshControlPanel(QWidget):
         if not self.chk_gradient.isChecked():
             # Sync outer with inner when gradient is off
             self.lc_outer_spin.setValue(self.lc_inner_spin.value())
+
+    def on_thermocouple_distance_changed(self, value: float) -> None:
+        """Update project state when thermocouple distance changes."""
+        self.project.thermocouple_distance = value
 
     def on_generate_clicked(self) -> None:
         lc_min = self.lc_inner_spin.value()
