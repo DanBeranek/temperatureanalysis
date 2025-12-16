@@ -21,6 +21,7 @@ from PySide6.QtGui import QCloseEvent, QResizeEvent
 
 from pyvistaqt import QtInteractor
 import pyvista as pv
+import gmsh
 
 from temperatureanalysis.model.state import GeometryData, ProjectState
 # Note: No longer need manual profile factories here, state.py handles it
@@ -68,6 +69,7 @@ class PyVistaWidget(QWidget):
         # --- Actors state ---
         self._geo_actors: list[pv.Actor] = []
         self._mesh_wireframe_actor: Optional[pv.Actor] = None
+        self._thermocouple_actors: list[pv.Actor] = []
 
         # Result Cache (To prevent flickering)
         self._result_heatmap_actor: Optional[pv.Actor] = None
@@ -148,10 +150,16 @@ class PyVistaWidget(QWidget):
         else:
             self._clear_mesh_layer()
 
-        # --- 4. APPLY VISIBILITY ---
+        # --- 4. LAYER: THERMOCOUPLES ---
+        if project_state.mesh_path:
+            self._update_thermocouple_layer(project_state.mesh_path)
+        else:
+            self._clear_thermocouple_layer()
+
+        # --- 5. APPLY VISIBILITY ---
         self._apply_visibility()
 
-        # --- 5. RESET CAMERA ---
+        # --- 6. RESET CAMERA ---
         if reset_camera:
             self._grid_manager.clear_actors()
             self.plotter.reset_camera()
@@ -474,6 +482,114 @@ class PyVistaWidget(QWidget):
             self.plotter.remove_actor(self._result_iso_actor)
             self._result_iso_actor = None
 
+    def _extract_thermocouples(self, mesh_path: str) -> Dict[str, Tuple[float, float]]:
+        """
+        Extract thermocouple positions from mesh file using Gmsh.
+        Returns dict mapping thermocouple names to (x, y) coordinates.
+        """
+        thermocouples: Dict[str, Tuple[float, float]] = {}
+
+        try:
+            gmsh.initialize()
+            gmsh.open(mesh_path)
+
+            # Get all nodes
+            node_tags, flat_coords, _ = gmsh.model.mesh.get_nodes()
+            coords = flat_coords.reshape(-1, 3)
+
+            # Loop through all entities
+            for dim, entity_tag in gmsh.model.get_entities():
+                if dim != 0:  # Only interested in point entities (dim=0)
+                    continue
+
+                # Get physical groups for this entity
+                phys_tags = gmsh.model.get_physical_groups_for_entity(dim, entity_tag)
+                if not phys_tags:
+                    continue
+
+                # Check if it's a thermocouple
+                for pt in phys_tags:
+                    name = gmsh.model.get_physical_name(dim, pt)
+                    if name and name.startswith("THERMOCOUPLE"):
+                        # Get element data for this entity
+                        element_types, element_tags_list, node_tags_list = gmsh.model.mesh.get_elements(dim, entity_tag)
+
+                        if element_types.size > 0:
+                            # Get the node indices (convert from 1-based to 0-based)
+                            for node_tag_array in node_tags_list:
+                                for node_tag in node_tag_array:
+                                    node_idx = np.where(node_tags == node_tag)[0]
+                                    if len(node_idx) > 0:
+                                        # Get x, y coordinates (ignore z)
+                                        x, y = coords[node_idx[0]][:2]
+                                        thermocouples[name.replace("THERMOCOUPLE - ", "")] = (float(x), float(y))
+                                        break  # Only one node per thermocouple
+                        break  # Found the thermocouple, move to next entity
+
+            gmsh.finalize()
+
+        except Exception as e:
+            logger.error(f"Failed to extract thermocouples: {e}")
+            try:
+                gmsh.finalize()
+            except:
+                pass
+
+        return thermocouples
+
+    def _update_thermocouple_layer(self, mesh_path: str) -> None:
+        """Visualize thermocouple points with labels."""
+        # Clear previous thermocouples
+        self._clear_thermocouple_layer()
+
+        if not mesh_path or not os.path.exists(mesh_path):
+            return
+
+        # Extract thermocouple positions
+        thermocouples = self._extract_thermocouples(mesh_path)
+
+        if not thermocouples:
+            return
+
+        offset = 0.01  # Slightly above geometry
+        # Add each thermocouple as a point with label
+        for name, (x, y) in thermocouples.items():
+            # Create point
+            point = np.array([[x, y, 0.02]])  # Slightly above geometry
+
+            # Add point marker
+            point_actor = self.plotter.add_points(
+                point,
+                color='red',
+                point_size=8,
+                render_points_as_spheres=True
+            )
+            self._thermocouple_actors.append(point_actor)
+
+            # Add label
+            label_actor = self.plotter.add_point_labels(
+                point+offset,
+                [name],
+                font_size=10,
+                text_color='black',
+                fill_shape=True,
+                shape_color='white',
+                shape_opacity=0.8,
+                always_visible=True,
+                show_points=False,
+                bold=False
+            )
+            self._thermocouple_actors.append(label_actor)
+
+    def _clear_thermocouple_layer(self):
+        """Removes thermocouple actors."""
+        for actor in self._thermocouple_actors:
+            try:
+                self.plotter.remove_actor(actor)
+            except:
+                pass
+        self._thermocouple_actors.clear()
+
     def _apply_visibility(self):
         """Applies visibility states to all layers."""
         # Geometry
@@ -483,6 +599,10 @@ class PyVistaWidget(QWidget):
         # Mesh
         if self._mesh_wireframe_actor:
             self._mesh_wireframe_actor.SetVisibility(self._visible_mesh)
+
+        # Thermocouples (always visible with mesh)
+        for a in self._thermocouple_actors:
+            if a: a.SetVisibility(self._visible_mesh)
 
         # Results
         if self._result_heatmap_actor:
