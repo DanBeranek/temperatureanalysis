@@ -10,6 +10,7 @@ import logging
 from temperatureanalysis.model.io import IOManager
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.controller.solver import SolverWorker, prepare_simulation_model
+from temperatureanalysis.view.dialogs.thermocouple_plot_dialog import ThermocouplePlotDialog
 
 
 logger = logging.getLogger(__name__)
@@ -356,7 +357,7 @@ class ResultsControlPanel(QWidget):
                 return
 
             # Extract thermocouple node indices
-            tc_indices = [node.index for node in model.mesh.thermocouples.values()]
+            tc_indices = [node.uid for node in model.mesh.thermocouples.values()]
 
             # Get critical temperature
             T_crit = self.spin_critical_temp.value()  # Celsius
@@ -411,7 +412,7 @@ class ResultsControlPanel(QWidget):
             self.btn_plot_rebar.setEnabled(False)
 
     def on_plot_rebar_clicked(self) -> None:
-        """Plot rebar temperature history."""
+        """Plot rebar temperature history using the thermocouple plot dialog."""
         if not self.project.results or not self.project.time_steps:
             return
 
@@ -423,39 +424,19 @@ class ResultsControlPanel(QWidget):
                 QMessageBox.warning(self, "Chyba", "V síti nebyly nalezeny termočlánky.")
                 return
 
-            # Extract thermocouple node indices
-            tc_indices = [node.index for node in model.mesh.thermocouples.values()]
-
             # Get critical temperature
             T_crit = self.spin_critical_temp.value()
 
-            # Convert results to Celsius and time to minutes
-            import numpy as np
-            import matplotlib.pyplot as plt
-
-            results_celsius = [np.asarray(temp_K) - 273.15 for temp_K in self.project.results]
-            time_steps_min = [t / 60.0 for t in self.project.time_steps]
-
-            # Calculate max temperatures over time
-            max_concrete_temps = [np.max(temp) for temp in results_celsius]
-            max_rebar_temps = [np.max(temp[tc_indices]) for temp in results_celsius]
-
-            # Create plot
-            fig, ax = plt.subplots(figsize=(10, 6))
-
-            ax.plot(time_steps_min, max_concrete_temps, 'b-', linewidth=2, label='Max. Teplota Betonu')
-            ax.plot(time_steps_min, max_rebar_temps, 'r-', linewidth=2, label='Max. Teplota Výztuže')
-            ax.axhline(y=T_crit, color='k', linestyle='--', linewidth=1.5, label=f'Kritická Teplota ({T_crit:.0f} °C)')
-
-            ax.set_xlabel('Čas [min]', fontsize=12)
-            ax.set_ylabel('Teplota [°C]', fontsize=12)
-            ax.set_title('Vývoj Teploty Betonu a Výztuže', fontsize=14, fontweight='bold')
-            ax.legend(fontsize=10, loc='best')
-            ax.grid(True, alpha=0.3)
-
-            plt.tight_layout()
-            plt.show()
+            # Open the dialog
+            dialog = ThermocouplePlotDialog(
+                thermocouples=model.mesh.thermocouples,
+                results=self.project.results,
+                time_steps=self.project.time_steps,
+                critical_temp=T_crit,
+                parent=self
+            )
+            dialog.exec()
 
         except Exception as e:
-            logger.exception("Failed to plot rebar temperatures")
-            QMessageBox.critical(self, "Chyba", f"Nepodařilo se vykreslit graf:\n{str(e)}")
+            logger.exception("Failed to open thermocouple plot dialog")
+            QMessageBox.critical(self, "Chyba", f"Nepodařilo se otevřít dialog s grafem:\n{str(e)}")
