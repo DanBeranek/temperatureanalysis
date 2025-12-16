@@ -260,7 +260,12 @@ class PyVistaWidget(QWidget):
             return
 
         thickness = getattr(geometry_data.parameters, "thickness", 0.5)
-        loop = profile.get_combined_loop(user_thickness=thickness, assume_symmetric=False)
+        rebar_depth = getattr(geometry_data.parameters, "rebar_depth", 0.1)
+        loop = profile.get_combined_loop(
+            user_thickness=thickness,
+            rebar_depth=rebar_depth,
+            assume_symmetric=False
+        )
 
         if not loop.entities:
             return
@@ -280,6 +285,21 @@ class PyVistaWidget(QWidget):
 
         # 5. Render
         self._draw_domains([domain])
+
+        # 6. Render Rebar Position
+        rebar_ents = profile.get_rebar_primitives(rebar_depth=rebar_depth, assume_symmetric=False)
+        for ent in rebar_ents:
+            ent_points_2d = self._vtk_utils.discretize_entities_to_array([ent])
+
+            # Ensure even number of points for rebar rendering
+            if len(ent_points_2d) % 2 != 0:
+                ent_points_2d = ent_points_2d[:-1]
+
+            ent_points_3d = np.c_[ent_points_2d, np.zeros((ent_points_2d.shape[0], 1), dtype=np.float64)]
+
+            act_rebar = self.plotter.add_lines(ent_points_3d, color="black", width=2)
+            self._geo_actors.append(act_rebar)
+
 
     def _draw_domains(self, domains: List[PreviewDomain]) -> None:
         """

@@ -39,17 +39,20 @@ class BoxParams:
     width: float = 8.0
     height: float = 5.0
     thickness: float = 0.5
+    rebar_depth: float = 0.1  # Distance from inner surface to rebar center [m]
 
 @dataclass
 class CircleParams:
     radius: float = 6.0
     center_y: float = 4.0
     thickness: float = 0.5
+    rebar_depth: float = 0.1  # Distance from inner surface to rebar center [m]
 
 @dataclass
 class PredefinedParams:
     profile_name: str = "Tunel T-7,5, ražený"
     thickness: float = 0.4
+    rebar_depth: float = 0.1  # Distance from inner surface to rebar center [m]
 
 # Union for type hinting
 GeometryParams = Union[BoxParams, CircleParams, PredefinedParams]

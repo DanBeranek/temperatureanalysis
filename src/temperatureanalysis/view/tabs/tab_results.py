@@ -51,6 +51,14 @@ class ResultsControlPanel(QWidget):
         self.spin_dt.valueChanged.connect(self.on_params_changed)
         form_settings.addRow("Časový krok:", self.spin_dt)
 
+        self.spin_critical_temp = QDoubleSpinBox()
+        self.spin_critical_temp.setDecimals(0)
+        self.spin_critical_temp.setRange(100.0, 1000.0)
+        self.spin_critical_temp.setValue(500.0)
+        self.spin_critical_temp.setSuffix(" °C")
+        self.spin_critical_temp.setToolTip("Kritická teplota výztuže pro analýzu")
+        form_settings.addRow("Kritická teplota výztuže:", self.spin_critical_temp)
+
         layout.addWidget(grp_settings)
 
         # --- Analysis ---
@@ -135,6 +143,24 @@ class ResultsControlPanel(QWidget):
         self.on_fps_changed(self.spin_fps.value())
 
         layout.addWidget(grp_vis)
+
+        # --- Rebar Analysis ---
+        grp_rebar = QGroupBox("Analýza Výztuže")
+        l_rebar = QVBoxLayout(grp_rebar)
+
+        self.lbl_stats = QLabel("Statistiky budou dostupné po dokončení výpočtu.")
+        self.lbl_stats.setWordWrap(True)
+        self.lbl_stats.setTextFormat(Qt.RichText)
+        self.lbl_stats.setStyleSheet("QLabel { padding: 5px; background-color: rgba(0,0,0,10); border-radius: 3px; }")
+        l_rebar.addWidget(self.lbl_stats)
+
+        self.btn_plot_rebar = QPushButton("Vykreslit Teploty Výztuže")
+        self.btn_plot_rebar.clicked.connect(self.on_plot_rebar_clicked)
+        self.btn_plot_rebar.setEnabled(False)
+        l_rebar.addWidget(self.btn_plot_rebar)
+
+        layout.addWidget(grp_rebar)
+
         layout.addStretch()
 
     def on_fps_changed(self, value: int) -> None:
@@ -233,6 +259,9 @@ class ResultsControlPanel(QWidget):
             # Setting slider value will emit slider change and update view
             self.slider.setValue(count - 1)
 
+            # Calculate and display statistics
+            self._update_rebar_statistics()
+
             # Notify that results are ready
             self.results_generated.emit()
 
@@ -307,5 +336,126 @@ class ResultsControlPanel(QWidget):
         self.slider.setEnabled(False)
         self.btn_play.setEnabled(False)
         self.btn_export.setEnabled(False)
+        self.btn_plot_rebar.setEnabled(False)
         self.slider.setValue(0)
         self.update_play_icon()
+        self.lbl_stats.setText("Statistiky budou dostupné po dokončení výpočtu.")
+
+    def _update_rebar_statistics(self) -> None:
+        """Calculate and display rebar temperature statistics."""
+        if not self.project.results or not self.project.time_steps:
+            return
+
+        try:
+            # Load model to access thermocouple data
+            model = prepare_simulation_model(self.project)
+
+            if not model.mesh.thermocouples:
+                self.lbl_stats.setText("<b>Informace:</b> V síti nebyly nalezeny žádné termočlánky (výztuž).")
+                self.btn_plot_rebar.setEnabled(False)
+                return
+
+            # Extract thermocouple node indices
+            tc_indices = [node.index for node in model.mesh.thermocouples.values()]
+
+            # Get critical temperature
+            T_crit = self.spin_critical_temp.value()  # Celsius
+
+            # Convert results to Celsius for analysis
+            import numpy as np
+            results_celsius = [np.asarray(temp_K) - 273.15 for temp_K in self.project.results]
+            time_steps_min = [t / 60.0 for t in self.project.time_steps]  # Convert to minutes
+
+            # Calculate max concrete temp across all nodes
+            max_concrete_temps = [np.max(temp) for temp in results_celsius]
+            idx_max_concrete = int(np.argmax(max_concrete_temps))
+            max_concrete_temp = max_concrete_temps[idx_max_concrete]
+            time_max_concrete = time_steps_min[idx_max_concrete]
+
+            # Calculate max rebar temp across thermocouple nodes
+            max_rebar_temps = [np.max(temp[tc_indices]) for temp in results_celsius]
+            idx_max_rebar = int(np.argmax(max_rebar_temps))
+            max_rebar_temp = max_rebar_temps[idx_max_rebar]
+            time_max_rebar = time_steps_min[idx_max_rebar]
+
+            # Find critical failure time (first time any thermocouple exceeds T_crit)
+            critical_time = None
+            for i, temp in enumerate(results_celsius):
+                if np.max(temp[tc_indices]) > T_crit:
+                    critical_time = time_steps_min[i]
+                    break
+
+            # Format statistics display
+            stats_text = "<b>Statistiky Teplotní Analýzy:</b><br><br>"
+
+            stats_text += f"<b>Maximální Teplota Betonu:</b><br>"
+            stats_text += f"&nbsp;&nbsp;• Teplota: {max_concrete_temp:.1f} °C<br>"
+            stats_text += f"&nbsp;&nbsp;• Čas: {time_max_concrete:.1f} min<br><br>"
+
+            stats_text += f"<b>Maximální Teplota Výztuže:</b><br>"
+            stats_text += f"&nbsp;&nbsp;• Teplota: {max_rebar_temp:.1f} °C<br>"
+            stats_text += f"&nbsp;&nbsp;• Čas: {time_max_rebar:.1f} min<br><br>"
+
+            stats_text += f"<b>Kritická Teplota: {T_crit:.0f} °C</b><br>"
+            if critical_time is not None:
+                stats_text += f"&nbsp;&nbsp;• ⚠ Překročeno v čase: {critical_time:.1f} min<br>"
+            else:
+                stats_text += f"&nbsp;&nbsp;• ✓ Nepřekročeno během analýzy<br>"
+
+            self.lbl_stats.setText(stats_text)
+            self.btn_plot_rebar.setEnabled(True)
+
+        except Exception as e:
+            logger.exception("Failed to calculate rebar statistics")
+            self.lbl_stats.setText(f"<b>Chyba při výpočtu statistik:</b><br>{str(e)}")
+            self.btn_plot_rebar.setEnabled(False)
+
+    def on_plot_rebar_clicked(self) -> None:
+        """Plot rebar temperature history."""
+        if not self.project.results or not self.project.time_steps:
+            return
+
+        try:
+            # Load model to access thermocouple data
+            model = prepare_simulation_model(self.project)
+
+            if not model.mesh.thermocouples:
+                QMessageBox.warning(self, "Chyba", "V síti nebyly nalezeny termočlánky.")
+                return
+
+            # Extract thermocouple node indices
+            tc_indices = [node.index for node in model.mesh.thermocouples.values()]
+
+            # Get critical temperature
+            T_crit = self.spin_critical_temp.value()
+
+            # Convert results to Celsius and time to minutes
+            import numpy as np
+            import matplotlib.pyplot as plt
+
+            results_celsius = [np.asarray(temp_K) - 273.15 for temp_K in self.project.results]
+            time_steps_min = [t / 60.0 for t in self.project.time_steps]
+
+            # Calculate max temperatures over time
+            max_concrete_temps = [np.max(temp) for temp in results_celsius]
+            max_rebar_temps = [np.max(temp[tc_indices]) for temp in results_celsius]
+
+            # Create plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            ax.plot(time_steps_min, max_concrete_temps, 'b-', linewidth=2, label='Max. Teplota Betonu')
+            ax.plot(time_steps_min, max_rebar_temps, 'r-', linewidth=2, label='Max. Teplota Výztuže')
+            ax.axhline(y=T_crit, color='k', linestyle='--', linewidth=1.5, label=f'Kritická Teplota ({T_crit:.0f} °C)')
+
+            ax.set_xlabel('Čas [min]', fontsize=12)
+            ax.set_ylabel('Teplota [°C]', fontsize=12)
+            ax.set_title('Vývoj Teploty Betonu a Výztuže', fontsize=14, fontweight='bold')
+            ax.legend(fontsize=10, loc='best')
+            ax.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            plt.show()
+
+        except Exception as e:
+            logger.exception("Failed to plot rebar temperatures")
+            QMessageBox.critical(self, "Chyba", f"Nepodařilo se vykreslit graf:\n{str(e)}")

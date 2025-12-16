@@ -197,6 +197,14 @@ class CustomShapeWidget(QWidget):
         self.circle_thick_spin.valueChanged.connect(lambda v: self._update_param("thickness", v))
         layout.addRow("Tloušťka [m]:", self.circle_thick_spin)
 
+        self.circle_rebar_spin = QDoubleSpinBox()
+        self.circle_rebar_spin.setRange(10.0, 500.0)
+        self.circle_rebar_spin.setDecimals(0)
+        self.circle_rebar_spin.setSingleStep(5.0)
+        self.circle_rebar_spin.setValue(100.0)
+        self.circle_rebar_spin.valueChanged.connect(lambda v: self._update_param("rebar_depth", v / 1000))
+        layout.addRow("Hloubka výztuže [mm]:", self.circle_rebar_spin)
+
     def _setup_box_page(self, parent: QWidget) -> None:
         layout = QFormLayout(parent)
 
@@ -218,6 +226,14 @@ class CustomShapeWidget(QWidget):
         self.box_thick_spin.setValue(0.5)
         self.box_thick_spin.valueChanged.connect(lambda v: self._update_param("thickness", v))
         layout.addRow("Tloušťka [m]:", self.box_thick_spin)
+
+        self.box_rebar_spin = QDoubleSpinBox()
+        self.box_rebar_spin.setRange(10.0, 500.0)
+        self.box_rebar_spin.setDecimals(0)
+        self.box_rebar_spin.setSingleStep(5.0)
+        self.box_rebar_spin.setValue(100.0)
+        self.box_rebar_spin.valueChanged.connect(lambda v: self._update_param("rebar_depth", v / 1000))
+        layout.addRow("Hloubka výztuže [mm]:", self.box_rebar_spin)
 
     def _update_param(self, key: str, value: float) -> None:
         # Check if attribute exists on current params object to avoid errors during transitions
@@ -244,6 +260,7 @@ class CustomShapeWidget(QWidget):
                 self.box_width_spin.setValue(params.width)
                 self.box_height_spin.setValue(params.height)
                 self.box_thick_spin.setValue(params.thickness)
+                self.box_rebar_spin.setValue(params.rebar_depth*1000)
 
         if shape == CustomTunnelShape.CIRCLE:  # Circle
             self.type_combo.setCurrentText(CustomTunnelShape.CIRCLE)
@@ -255,6 +272,7 @@ class CustomShapeWidget(QWidget):
                 self.circle_radius_spin.setValue(params.radius)
                 self.circle_center_spin.setValue(params.center_y)
                 self.circle_thick_spin.setValue(params.thickness)
+                self.circle_rebar_spin.setValue(params.rebar_depth*1000)
 
         self.type_combo.blockSignals(False)
         self.blockSignals(False)
@@ -293,6 +311,16 @@ class StandardProfileWidget(QWidget):
         self.thick_spin.setValue(val_t)
         self.thick_spin.valueChanged.connect(self.on_thickness_changed)
         self.layout_form.addRow("Tloušťka [m]:", self.thick_spin)
+
+        val_r = p.rebar_depth * 1000 if isinstance(p, PredefinedParams) else 100.0
+
+        self.rebar_spin = QDoubleSpinBox()
+        self.rebar_spin.setRange(10.0, 500.0)
+        self.rebar_spin.setDecimals(0)
+        self.rebar_spin.setSingleStep(5.0)
+        self.rebar_spin.setValue(val_r)
+        self.rebar_spin.valueChanged.connect(self.on_rebar_depth_changed)
+        self.layout_form.addRow("Hloubka výztuže [mm]:", self.rebar_spin)
 
         self.layout_main.addWidget(self.form_widget)
 
@@ -358,10 +386,16 @@ class StandardProfileWidget(QWidget):
             self.project.geometry.parameters.thickness = val
             self.param_changed.emit()
 
+    def on_rebar_depth_changed(self, val: float) -> None:
+        if isinstance(self.project.geometry.parameters, PredefinedParams):
+            self.project.geometry.parameters.rebar_depth = val / 1000.0
+            self.param_changed.emit()
+
     def load_from_state(self):
         # Refresh logic
         if isinstance(self.project.geometry.parameters, PredefinedParams):
             self.thick_spin.setValue(self.project.geometry.parameters.thickness)
+            self.rebar_spin.setValue(self.project.geometry.parameters.rebar_depth * 1000.0)
             # Combo population handles the name setting
             self.update_image_preview()
 

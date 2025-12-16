@@ -54,22 +54,47 @@ class TunnelOutline:
     floor_height: float
     angle: Optional[float] = None
 
-    def get_primitives(self, offset: float = 0.0, assume_symmetric: bool = False) -> List[GeometricEntity]:
+    def get_primitives(
+        self,
+        offset: float = 0.0,
+        max_distance_between_points: Optional[float] = None,
+        assume_symmetric: bool = False
+    ) -> List[GeometricEntity]:
         """
         Generate a list of Arcs/Lines for this specific boundary (CCW direction).
         Always results in an Open Arch (C-shape).
         """
         match self.shape:
             case OutlineShape.CIRCLE:
-                return self._generate_arc(offset=offset, assume_symmetric=assume_symmetric)
+                return self._generate_arc(
+                    offset=offset,
+                    max_distance_between_points=max_distance_between_points,
+                    assume_symmetric=assume_symmetric
+                )
             case OutlineShape.THREE_CENTRE:
-                return self._generate_three_centre(offset=offset, assume_symmetric=assume_symmetric)
+                return self._generate_three_centre(
+                    offset=offset,
+                    max_distance_between_points=max_distance_between_points,
+                    assume_symmetric=assume_symmetric
+                )
             case OutlineShape.FIVE_CENTRE:
-                return self._generate_five_centre(offset=offset, assume_symmetric=assume_symmetric)
+                return self._generate_five_centre(
+                    offset=offset,
+                    max_distance_between_points=max_distance_between_points,
+                    assume_symmetric=assume_symmetric
+                )
             case OutlineShape.BOX:
-                return self._generate_box(offset=offset, assume_symmetric=assume_symmetric)
+                return self._generate_box(
+                    offset=offset,
+                    max_distance_between_points=max_distance_between_points,
+                    assume_symmetric=assume_symmetric
+                )
             case OutlineShape.D_SEGMENTAL:
-                return self._generate_d_segments(offset=offset, assume_symmetric=assume_symmetric)
+                return self._generate_d_segments(
+                    offset=offset,
+                    max_distance_between_points=max_distance_between_points,
+                    assume_symmetric=assume_symmetric
+                )
             case _:
                 return []
 
@@ -85,7 +110,12 @@ class TunnelOutline:
         points_y = [p.start.y for p in primitives] + [p.end.y for p in primitives]
         return max(points_y)
 
-    def _generate_arc(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
+    def _generate_arc(
+        self,
+        offset: float,
+        assume_symmetric: bool,
+        max_distance_between_points: Optional[float] = None,
+    ) -> List[Arc]:
         r = self.dimensions[0] + offset
         p_center = Point(self.center_first[0], self.center_first[1])
         circle = Circle(center=p_center, radius=r)
@@ -108,14 +138,19 @@ class TunnelOutline:
 
         p_top = p_center + Vector(0, r)
 
-        primitives = [Arc(p_start, p_center, p_top)]
+        primitives = Arc(p_start, p_center, p_top).divide(max_distance_between_points=max_distance_between_points)
 
         if not assume_symmetric:
-            primitives.append(Arc(p_top, p_center, p_end))
+            primitives.extend(Arc(p_top, p_center, p_end).divide(max_distance_between_points=max_distance_between_points))
 
         return primitives
 
-    def _generate_three_centre(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
+    def _generate_three_centre(
+        self,
+        offset: float,
+        assume_symmetric: bool,
+        max_distance_between_points: Optional[float] = None,
+    ) -> List[Arc]:
         floor_point = Point(0.0, self.floor_height)
 
         r1 = self.dimensions[0] + offset
@@ -138,20 +173,22 @@ class TunnelOutline:
         p1 = line_circle_intersection(floor_point, Point(1000, self.floor_height) - floor_point, circle2, as_segment=True)[0]
         p5 = line_circle_intersection(floor_point, Point(-1000, self.floor_height) - floor_point, circle3, as_segment=True)[0]
 
-        primitives = [
-            Arc(p1, pc2, p2),
-            Arc(p2, pc1, p3),
-        ]
+        primitives = Arc(p1, pc2, p2).divide(max_distance_between_points=max_distance_between_points)
+        primitives.extend(Arc(p2, pc1, p3).divide(max_distance_between_points=max_distance_between_points))
+
 
         if not assume_symmetric:
-            primitives.extend([
-                Arc(p3, pc1, p4),
-                Arc(p4, pc3, p5)
-            ])
+            primitives.extend(Arc(p3, pc1, p4).divide(max_distance_between_points=max_distance_between_points))
+            primitives.extend(Arc(p4, pc3, p5).divide(max_distance_between_points=max_distance_between_points))
 
         return primitives
 
-    def _generate_five_centre(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
+    def _generate_five_centre(
+        self,
+        offset: float,
+        assume_symmetric: bool,
+        max_distance_between_points: Optional[float] = None,
+    ) -> List[Arc]:
         floor_point = Point(0.0, self.floor_height)
 
         r1 = self.dimensions[0] + offset
@@ -179,22 +216,23 @@ class TunnelOutline:
         p1 = line_circle_intersection(floor_point, Point(1000, self.floor_height) - floor_point, circle2, as_segment=True)[0]
         p7 = line_circle_intersection(floor_point, Point(-1000, self.floor_height) - floor_point, circle3, as_segment=True)[0]
 
-        primitives = [
-            Arc(p1, p6, p2),
-            Arc(p2, pc2, p3),
-            Arc(p3, pc1, p4)
-        ]
+        primitives = Arc(p1, p6, p2).divide(max_distance_between_points=max_distance_between_points)
+        primitives.extend(Arc(p2, pc2, p3).divide(max_distance_between_points=max_distance_between_points))
+        primitives.extend(Arc(p3, pc1, p4).divide(max_distance_between_points=max_distance_between_points))
 
         if not assume_symmetric:
-            primitives.extend([
-                Arc(p4, pc1, p5),
-                Arc(p5, pc3, p6),
-                Arc(p6, p2, p7),
-            ])
+            primitives.extend(Arc(p4, pc1, p5).divide(max_distance_between_points=max_distance_between_points))
+            primitives.extend(Arc(p5, pc3, p6).divide(max_distance_between_points=max_distance_between_points))
+            primitives.extend(Arc(p6, p2, p7).divide(max_distance_between_points=max_distance_between_points))
 
         return primitives
 
-    def _generate_box(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
+    def _generate_box(
+        self,
+        offset: float,
+        assume_symmetric: bool,
+        max_distance_between_points: Optional[float] = None,
+    ) -> List[Line]:
         half_w = self.dimensions[0] / 2 + offset
         height = self.dimensions[1] + offset
 
@@ -204,20 +242,21 @@ class TunnelOutline:
         p3 = Point(-half_w, height)
         p4 = Point(-half_w, 0.0)
 
-        primitives = [
-            Line(p1, p2),
-            Line(p2, p_top),
-        ]
+        primitives = Line(p1, p2).divide(max_distance_between_points=max_distance_between_points)
+        primitives.extend(Line(p2, p_top).divide(max_distance_between_points=max_distance_between_points))
 
         if not assume_symmetric:
-            primitives.extend([
-                Line(p_top, p3),
-                Line(p3, p4),
-            ])
+            primitives.extend(Line(p_top, p3).divide(max_distance_between_points=max_distance_between_points))
+            primitives.extend(Line(p3, p4).divide(max_distance_between_points=max_distance_between_points))
 
         return primitives
 
-    def _generate_d_segments(self, offset: float, assume_symmetric: bool) -> List[GeometricEntity]:
+    def _generate_d_segments(
+        self,
+        offset: float,
+        assume_symmetric: bool,
+        max_distance_between_points: Optional[float] = None,
+    ) -> List[GeometricEntity]:
         y = self.floor_height
 
         r1 = self.dimensions[0] + offset
@@ -231,16 +270,12 @@ class TunnelOutline:
         p4 = Point(-r1, cy)
         p5 = Point(-r1, y)
 
-        primitives = [
-            Line(p1, p2),
-            Arc(p2, pc, p3),
-        ]
+        primitives: list[GeometricEntity] = Line(p1, p2).divide(max_distance_between_points=max_distance_between_points)
+        primitives.extend(Arc(p2, pc, p3).divide(max_distance_between_points=max_distance_between_points))
 
         if not assume_symmetric:
-            primitives.extend([
-                Arc(p3, pc, p4),
-                Line(p4, p5)
-            ])
+            primitives.extend(Arc(p3, pc, p4).divide(max_distance_between_points=max_distance_between_points))
+            primitives.extend(Line(p4, p5).divide(max_distance_between_points=max_distance_between_points))
 
         return primitives
 
@@ -250,6 +285,7 @@ class TunnelProfile:
     description: str
     inner: TunnelOutline
     outer: Optional[TunnelOutline] = None
+    rebar_thermocouples: Optional[TunnelOutline] = None
     y_bounds: Optional[List[float]] = None
 
     def __post_init__(self):
@@ -258,7 +294,13 @@ class TunnelProfile:
             max_height = self.inner.get_maximum_height()
             object.__setattr__(self, 'y_bounds', [min_height, max_height])
 
-    def get_combined_loop(self, user_thickness: float, assume_symmetric: bool) -> BoundaryLoop:
+    def get_combined_loop(
+        self,
+        user_thickness: float,
+        rebar_depth: float,
+        assume_symmetric: bool,
+        max_distance_between_points: Optional[float] = None,
+    ) -> BoundaryLoop:
         """
         Generate a SINGLE closed C-shape loop defining the concrete domain.
         Sequence: Outer Arcs (CCW) -> Floor Line -> Inner Arcs (CW) -> Close.
@@ -280,7 +322,10 @@ class TunnelProfile:
         for e in outer_ents: e.label = "outer"
 
         # 2. Generate Inner Primitives (CCW)
-        inner_ents_ccw = self.inner.get_primitives(assume_symmetric=assume_symmetric)
+        inner_ents_ccw = self.inner.get_primitives(
+            assume_symmetric=assume_symmetric,
+            max_distance_between_points=max_distance_between_points
+        )
 
         if not outer_ents or not inner_ents_ccw:
             return loop
@@ -298,27 +343,84 @@ class TunnelProfile:
 
         # B. Connect Left Floor: Outer End -> Inner Start
         # Note: Outer End is Left Floor Outer. Inner Start (CW) is Left Floor Inner.
+        # Add a Point in the position of the thermocouple in rebar
+        start = outer_ents[-1].end
+        end = inner_ents_cw[0].start
+
+        if assume_symmetric:
+            vec = Vector(0, rebar_depth)
+        else:
+            vec = Vector(-rebar_depth, 0)
+        middle = end + vec
+
         loop.add_entities(
-            [Line(
-                start=outer_ents[-1].end,
-                end=inner_ents_cw[0].start,
-                label="outer"
-            )]
+            [
+                Line(
+                    start=start,
+                    end=middle,
+                    label="outer"
+                ),
+                Line(
+                    start=middle,
+                    end=end,
+                    label="outer"
+                ),
+            ]
         )
 
         # C. Add Inner Boundary (Left Floor -> Top -> Right Floor)
         loop.add_entities(inner_ents_cw)
 
         # D. Connect Right Floor
+        # Add a Point in the position of the thermocouple in rebar
+        start = inner_ents_cw[-1].end
+        vec = Vector(rebar_depth, 0)
+        middle = start + vec
+        end = outer_ents[0].start
         loop.add_entities(
-            [Line(
-                start=inner_ents_cw[-1].end,
-                end=outer_ents[0].start,
-                label="outer"
-            )]
+            [
+                Line(
+                    start=start,
+                    end=middle,
+                    label="outer"
+                ),
+                Line(
+                    start=middle,
+                    end=end,
+                    label="outer"
+                ),
+            ]
         )
 
         return loop
+
+    def get_rebar_primitives(self, rebar_depth: float, assume_symmetric: bool) -> Optional[List[GeometricEntity]]:
+        """
+        Generate a list of Arcs/Lines for the rebar thermocouple boundary (CCW direction).
+        Always results in an Open Arch (C-shape).
+        """
+
+        return self.inner.get_primitives(offset=rebar_depth, assume_symmetric=assume_symmetric)
+
+    def get_rebar_points(self, rebar_depth: float, assume_symmetric: bool, max_length: float) -> Optional[List[Point]]:
+        """
+        Generate a list of Points for the rebar thermocouple locations.
+        Always results in an Open Arch (C-shape).
+        """
+
+        primitives = self.get_rebar_primitives(rebar_depth=rebar_depth, assume_symmetric=assume_symmetric)
+        if not primitives:
+            return None
+        divided_primitives = []
+        for prim in primitives:
+            divided_primitives.extend(prim.divide(max_distance_between_points=max_length))
+
+        points = []
+        for prim in divided_primitives:
+            points.append(prim.start)
+        # Add the last point
+        points.append(divided_primitives[-1].end)
+        return points
 
 # 1. Flat Dictionary for Lookup (Used by Renderer)
 RAIL_SINGLE_PROFILES: Dict[str, TunnelProfile] = {

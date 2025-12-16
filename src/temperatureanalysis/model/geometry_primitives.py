@@ -67,6 +67,11 @@ class Vector:
     def to_array(self) -> npt.NDArray[np.float64]:
         return np.array([self.x, self.y, self.z])
 
+    def angle_to(self, other: Vector) -> float:
+        """Returns the angle in radians between this vector and another."""
+        return math.atan2(self.cross(other).magnitude, self.dot(other))
+
+
 @dataclass
 class Point:
     """A simple geometric point in 3D space."""
@@ -109,11 +114,39 @@ class Line:
     def reverse(self) -> Line:
         return Line(start=self.end, end=self.start)
 
-    def discretize(self) -> npt.NDArray[np.float64]:
-        return np.array([self.start.to_array(), self.end.to_array()])
+    def discretize(self, max_length: Optional[float] = None) -> npt.NDArray[np.float64]:
+        if max_length is None:
+            return np.array([self.start.to_array(), self.end.to_array()])
+
+        resolution = max(2, math.ceil((self.length / max_length) / 2) * 2)  # Ensure at least 2 points and even number
+        return np.linspace(self.start.to_array(), self.end.to_array(), resolution)
+
+    def divide(
+        self,
+        max_distance_between_points: Optional[float] = None
+    ) -> list[Line]:
+        """Divides the line into smaller lines based on max distance between points."""
+        if max_distance_between_points is None:
+            return [self]
+
+        points = self.discretize(max_length=max_distance_between_points)
+        lines = []
+        for p1, p2 in zip(points[:-1], points[1:]):
+            line = Line(
+                start=Point(x=p1[0], y=p1[1], z=p1[2]),
+                end=Point(x=p2[0], y=p2[1], z=p2[2]),
+                lc=self.lc,
+                label=self.label
+            )
+            lines.append(line)
+        return lines
 
     def to_vector(self) -> Vector:
         return self.end - self.start
+
+    @property
+    def length(self) -> float:
+        return self.start.distance_to(self.end)
 
 @dataclass
 class Circle:
@@ -137,11 +170,20 @@ class Arc:
     def reverse(self) -> Arc:
         return Arc(center=self.center, start=self.end, end=self.start)
 
-    def discretize(self, resolution: int = 100) -> npt.NDArray[np.float64]:
+    @property
+    def radius(self) -> float:
+        return (self.start - self.center).magnitude
+
+    def discretize(self, max_length: Optional[float] = None) -> npt.NDArray[np.float64]:
         """
         Generates points along the arc from `start` to `end` via `center`.
         Handles the 'shortest path' logic standard in CAD kernels.
         """
+        if max_length is not None:
+            resolution = self._get_number_of_segments(max_length=max_length)
+        else:
+            resolution = 100
+
         p_s = self.start.to_array()
         p_e = self.end.to_array()
         p_c = self.center.to_array()
@@ -174,6 +216,38 @@ class Arc:
         z = np.zeros_like(x)
 
         return np.array([x, y, z]).T
+
+    def divide(
+        self,
+        max_distance_between_points: Optional[float] = None
+    ) -> list[Arc]:
+        """Divides the arc into smaller arcs based on max distance between points."""
+        if max_distance_between_points is None:
+            return [self]
+
+        points = self.discretize(max_length=max_distance_between_points)
+        arcs = []
+        for p1, p2 in zip(points[:-1], points[1:]):
+            arc = Arc(
+                start=Point(x=p1[0], y=p1[1], z=p1[2]),
+                center=self.center,
+                end=Point(x=p2[0], y=p2[1], z=p2[2]),
+                lc=self.lc,
+                label=self.label
+            )
+            arcs.append(arc)
+        return arcs
+
+
+
+    def _get_number_of_segments(self, max_length: float) -> int:
+        """Helper to calculate number of segments based on max distance."""
+        vec_start = self.start - self.center
+        vec_end = self.end - self.center
+        angle_rad = vec_start.angle_to(vec_end)
+
+        length = 2 * math.pi * self.radius / (2 * math.pi) * abs(angle_rad)
+        return max(2, math.ceil((length / max_length) / 2) * 2)  # Ensure at least 2 points and even number
 
 # Union type for list handling
 GeometricEntity = Union[Line, Arc]

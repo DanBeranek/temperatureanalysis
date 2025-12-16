@@ -50,8 +50,8 @@ class PointCache:
 
     def get_or_create(self, pt: Point, mesh_size: float) -> int:
         # Round keys to avoid floating point mismatch issues
-        # Using 6 decimals allows for sub-millimeter precision which is fine for tunnels
-        key = (round(pt.x, 6), round(pt.y, 6))
+        # Using 6 decimals allows for sub-millimeter precision which is fine
+        key = (round(float(pt.x), 6), round(float(pt.y), 6))
 
         if key in self.cache:
             return self.cache[key]
@@ -98,8 +98,14 @@ class GmshMesher:
             gmsh.clear()
             logger.info(f"Generating mesh.")
 
+            gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+
             # 2. Get the geometry loop
-            loop = self._get_boundary_loop(project)
+            loop = self._get_boundary_loop(
+                project=project,
+                assume_symmetric=True,
+                max_distance_between_points=0.05
+            )
 
             if not loop or not loop.entities:
                 raise ValueError("No valid geometry found to mesh.")
@@ -114,6 +120,9 @@ class GmshMesher:
             # Categories for Physical Groups
             tags_inner = []
             tags_outer = []
+
+            tags_inner_points = []
+            tags_rebar_points = []
 
             for entity in loop.entities:
                 p1_tag = point_cache.get_or_create(entity.start, base_lc)
@@ -132,6 +141,9 @@ class GmshMesher:
                     match entity.label:
                         case "inner":
                             tags_inner.append(c_tag)
+                            # Register points if they lay at the inner boundary and are not in the list already
+                            if p1_tag not in tags_inner_points: tags_inner_points.append(p1_tag)
+                            if p2_tag not in tags_inner_points: tags_inner_points.append(p2_tag)
                         case "outer":
                             tags_outer.append(c_tag)
 
@@ -142,6 +154,21 @@ class GmshMesher:
             loop_tag = gmsh.model.geo.add_curve_loop(curve_tags)
             surface_tag = gmsh.model.geo.add_plane_surface([loop_tag])
 
+            # Generate points for rebar thermocouples
+            rebar_pts = self._get_rebar_points(
+                project=project,
+                assume_symmetric=True,
+                max_distance_between_points=0.2
+            )
+            for pt in rebar_pts[1:-1]:  # Skip first and last (on boundary)
+                pt_tag = point_cache.get_or_create(pt, base_lc)
+                tags_rebar_points.append(pt_tag)
+
+            # 5. Synchronization & Meshing
+            gmsh.model.geo.synchronize()
+
+            gmsh.model.mesh.embed(0, tags_rebar_points, 2, surface_tag)
+
             # PHYSICAL GROUPS
             # A. Domain (Surface)
             # The name "Beton" matches the material mapping.
@@ -151,8 +178,20 @@ class GmshMesher:
             if tags_inner:
                 gmsh.model.add_physical_group(1, tags_inner, name="FIRE EXPOSED SIDE")
 
-            # 5. Synchronization & Meshing
-            gmsh.model.geo.synchronize()
+            # C. Thermocouple Points
+            # C.1 Inner Boundary Points
+            for i, pt_tag in enumerate(tags_inner_points):
+                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - O{i+1}")
+
+            for i, pt_tag in enumerate(tags_rebar_points):
+                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1}")
+
+            # rebar_depth = getattr(project.geometry.parameters, "rebar_depth", 0.05)
+            # thermocouple_tags = self._generate_thermocouple_points(loop, rebar_depth, point_cache, base_lc)
+            # if thermocouple_tags:
+            #     gmsh.model.add_physical_group(0, thermocouple_tags, name="THERMOCOUPLE")
+            #     logger.info(f"Generated {len(thermocouple_tags)} thermocouple points at rebar depth {rebar_depth:.3f}m")
+
 
             if use_gradient and tags_inner:
                 # Get thickness to scale the gradient field if needed
@@ -240,7 +279,11 @@ class GmshMesher:
                     self._initialized = False
 
     @staticmethod
-    def _get_boundary_loop(project: ProjectState, assume_symmetric: bool = True) -> Optional[BoundaryLoop]:
+    def _get_boundary_loop(
+        project: ProjectState,
+        assume_symmetric: bool = True,
+        max_distance_between_points: Optional[float] = None,
+    ) -> Optional[BoundaryLoop]:
         """
         Returns the boundary loop from the project geometry state.
         """
@@ -254,4 +297,38 @@ class GmshMesher:
         # Apply thickness
         thickness = getattr(geo.parameters, "thickness", 0.5)
 
-        return profile.get_combined_loop(user_thickness=thickness, assume_symmetric=assume_symmetric)
+        # Add rebar depth if available
+        rebar_depth = getattr(geo.parameters, "rebar_depth", 0.1)
+
+        return profile.get_combined_loop(
+            user_thickness=thickness,
+            rebar_depth=rebar_depth,
+            assume_symmetric=assume_symmetric,
+            max_distance_between_points=max_distance_between_points
+        )
+
+    @staticmethod
+    def _get_rebar_points(
+        project: ProjectState,
+        assume_symmetric: bool = True,
+        max_distance_between_points: Optional[float] = None,
+    ) -> list[Point]:
+        """
+        Returns the points from the project geometry state.
+        """
+        geo = project.geometry
+
+        # 1. Get the profile
+        profile = geo.get_resolved_profile()
+        if not profile:
+            return []
+
+        # Add rebar depth if available
+        rebar_depth = getattr(geo.parameters, "rebar_depth", 0.1)
+
+        return profile.get_rebar_points(
+            rebar_depth=rebar_depth,
+            assume_symmetric=assume_symmetric,
+            max_length=max_distance_between_points
+        )
+

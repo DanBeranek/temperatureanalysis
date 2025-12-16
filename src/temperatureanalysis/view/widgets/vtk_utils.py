@@ -9,7 +9,7 @@ from vtkmodules.vtkFiltersGeneral import vtkContourTriangulator
 
 import logging
 
-from temperatureanalysis.model.geometry_primitives import BoundaryLoop
+from temperatureanalysis.model.geometry_primitives import BoundaryLoop, GeometricEntity
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,22 @@ class VtkUtils:
         # Add the final closing point of the loop
         if loop.entities:
             last_p = loop.entities[-1].discretize()[-1]
+            points_list.append([last_p[0], last_p[1]])
+
+        return np.array(points_list, dtype=np.float64)
+
+    @staticmethod
+    def discretize_entities_to_array(entities: list[GeometricEntity]) -> npt.NDArray[np.float64]:
+        points_list = []
+        for entity in entities:
+            pts = entity.discretize()
+            # Skip the last point to avoid duplicates
+            for p in pts[:-1]:
+                points_list.append([p[0], p[1]])
+
+        # Add the last point of the last entity
+        if entities:
+            last_p = entities[-1].discretize()[-1]
             points_list.append([last_p[0], last_p[1]])
 
         return np.array(points_list, dtype=np.float64)
