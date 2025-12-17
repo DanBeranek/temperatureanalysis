@@ -114,22 +114,22 @@ class Line:
     def reverse(self) -> Line:
         return Line(start=self.end, end=self.start)
 
-    def discretize(self, max_length: Optional[float] = None) -> npt.NDArray[np.float64]:
-        if max_length is None:
+    def discretize(self, num_points: Optional[int] = None) -> npt.NDArray[np.float64]:
+        if num_points is None:
             return np.array([self.start.to_array(), self.end.to_array()])
 
-        resolution = max(2, math.ceil((self.length / max_length) / 2) * 2)  # Ensure at least 2 points and even number
+        resolution = max(2, num_points)  # Ensure at least 2 points
         return np.linspace(self.start.to_array(), self.end.to_array(), resolution)
 
     def divide(
         self,
-        max_distance_between_points: Optional[float] = None
+        num_points: Optional[int] = None
     ) -> list[Line]:
-        """Divides the line into smaller lines based on max distance between points."""
-        if max_distance_between_points is None:
+        """Divides the line into smaller lines with equally spaced points."""
+        if num_points is None:
             return [self]
 
-        points = self.discretize(max_length=max_distance_between_points)
+        points = self.discretize(num_points=num_points)
         lines = []
         for p1, p2 in zip(points[:-1], points[1:]):
             line = Line(
@@ -174,13 +174,21 @@ class Arc:
     def radius(self) -> float:
         return (self.start - self.center).magnitude
 
-    def discretize(self, max_length: Optional[float] = None) -> npt.NDArray[np.float64]:
+    @property
+    def length(self) -> float:
+        """Arc length."""
+        v_start = self.start - self.center
+        v_end = self.end - self.center
+        angle = v_start.angle_to(v_end)
+        return angle * self.radius
+
+    def discretize(self, num_points: Optional[int] = None) -> npt.NDArray[np.float64]:
         """
         Generates points along the arc from `start` to `end` via `center`.
         Handles the 'shortest path' logic standard in CAD kernels.
         """
-        if max_length is not None:
-            resolution = self._get_number_of_segments(max_length=max_length)
+        if num_points is not None:
+            resolution = max(2, num_points)  # Ensure at least 2 points
         else:
             resolution = 100
 
@@ -219,13 +227,13 @@ class Arc:
 
     def divide(
         self,
-        max_distance_between_points: Optional[float] = None
+        num_points: Optional[int] = None
     ) -> list[Arc]:
-        """Divides the arc into smaller arcs based on max distance between points."""
-        if max_distance_between_points is None:
+        """Divides the arc into smaller arcs with equally spaced points."""
+        if num_points is None:
             return [self]
 
-        points = self.discretize(max_length=max_distance_between_points)
+        points = self.discretize(num_points=num_points)
         arcs = []
         for p1, p2 in zip(points[:-1], points[1:]):
             arc = Arc(
@@ -237,17 +245,6 @@ class Arc:
             )
             arcs.append(arc)
         return arcs
-
-
-
-    def _get_number_of_segments(self, max_length: float) -> int:
-        """Helper to calculate number of segments based on max distance."""
-        vec_start = self.start - self.center
-        vec_end = self.end - self.center
-        angle_rad = vec_start.angle_to(vec_end)
-
-        length = 2 * math.pi * self.radius / (2 * math.pi) * abs(angle_rad)
-        return max(2, math.ceil((length / max_length) / 2) * 2)  # Ensure at least 2 points and even number
 
 # Union type for list handling
 GeometricEntity = Union[Line, Arc]

@@ -111,7 +111,7 @@ class GmshMesher:
             loop = self._get_boundary_loop(
                 project=project,
                 assume_symmetric=True,
-                max_distance_between_points=project.thermocouple_distance
+                num_points=project.thermocouple_count
             )
 
             if not loop or not loop.entities:
@@ -165,7 +165,7 @@ class GmshMesher:
             rebar_pts = self._get_rebar_points(
                 project=project,
                 assume_symmetric=True,
-                max_distance_between_points=project.thermocouple_distance
+                num_points=project.thermocouple_count
             )
             for pt in rebar_pts[1:-1]:  # Skip first and last (on boundary)
                 pt_tag = point_cache.get_or_create(pt, base_lc)
@@ -192,6 +192,7 @@ class GmshMesher:
 
             tags_rebar_points.insert(0, point_cache.get(rebar_pts[0]))
             tags_rebar_points.append(point_cache.get(rebar_pts[-1]))
+            tags_rebar_points.reverse()
             for i, pt_tag in enumerate(tags_rebar_points):
                 gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1}")
 
@@ -291,7 +292,7 @@ class GmshMesher:
     def _get_boundary_loop(
         project: ProjectState,
         assume_symmetric: bool = True,
-        max_distance_between_points: Optional[float] = None,
+        num_points: Optional[int] = None,
     ) -> Optional[BoundaryLoop]:
         """
         Returns the boundary loop from the project geometry state.
@@ -313,14 +314,14 @@ class GmshMesher:
             user_thickness=thickness,
             rebar_depth=rebar_depth,
             assume_symmetric=assume_symmetric,
-            max_distance_between_points=max_distance_between_points
+            num_points=num_points
         )
 
     @staticmethod
     def _get_rebar_points(
         project: ProjectState,
         assume_symmetric: bool = True,
-        max_distance_between_points: Optional[float] = None,
+        num_points: Optional[int] = None,
     ) -> list[Point]:
         """
         Returns the points from the project geometry state.
@@ -338,6 +339,6 @@ class GmshMesher:
         return profile.get_rebar_points(
             rebar_depth=rebar_depth,
             assume_symmetric=assume_symmetric,
-            max_length=max_distance_between_points
+            num_points=num_points
         )
 

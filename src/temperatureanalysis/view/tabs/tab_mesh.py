@@ -6,7 +6,7 @@ import shutil
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QGroupBox, QFormLayout, QMessageBox, QCheckBox,
-    QFileDialog
+    QFileDialog, QSpinBox
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -52,14 +52,13 @@ class MeshControlPanel(QWidget):
         self.lc_outer_spin.setEnabled(False)  # Disabled by default
         form.addRow("Velikost elementu (Vnější):", self.lc_outer_spin)
 
-        # 4. Thermocouple Distance
-        self.thermocouple_distance_spin = QDoubleSpinBox()
-        self.thermocouple_distance_spin.setRange(0.05, 1.0)
-        self.thermocouple_distance_spin.setSingleStep(0.05)
-        self.thermocouple_distance_spin.setValue(self.project.thermocouple_distance)
-        self.thermocouple_distance_spin.setSuffix(" m")
-        self.thermocouple_distance_spin.valueChanged.connect(self.on_thermocouple_distance_changed)
-        form.addRow("Vzdálenost mezi termočlánky:", self.thermocouple_distance_spin)
+        # 4. Thermocouple Count
+        self.thermocouple_count_spin = QSpinBox()
+        self.thermocouple_count_spin.setRange(5, 100)
+        self.thermocouple_count_spin.setSingleStep(1)
+        self.thermocouple_count_spin.setValue(self.project.thermocouple_count)
+        self.thermocouple_count_spin.valueChanged.connect(self.on_thermocouple_count_changed)
+        form.addRow("Počet termočlánků:", self.thermocouple_count_spin)
 
         layout.addWidget(grp)
 
@@ -116,9 +115,9 @@ class MeshControlPanel(QWidget):
             # Sync outer with inner when gradient is off
             self.lc_outer_spin.setValue(self.lc_inner_spin.value())
 
-    def on_thermocouple_distance_changed(self, value: float) -> None:
-        """Update project state when thermocouple distance changes."""
-        self.project.thermocouple_distance = value
+    def on_thermocouple_count_changed(self, value: int) -> None:
+        """Update project state when thermocouple count changes."""
+        self.project.thermocouple_count = value
 
     def on_generate_clicked(self) -> None:
         lc_min = self.lc_inner_spin.value()
