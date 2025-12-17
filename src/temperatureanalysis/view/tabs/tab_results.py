@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 import logging
+import numpy as np
 
 from temperatureanalysis.model.io import IOManager
 from temperatureanalysis.model.state import ProjectState
@@ -356,35 +357,49 @@ class ResultsControlPanel(QWidget):
                 self.btn_plot_rebar.setEnabled(False)
                 return
 
+            tc_concrete_indices = []
+            tc_rebar_indices = []
             # Extract thermocouple node indices
-            tc_indices = [node.uid for node in model.mesh.thermocouples.values()]
+            for name, node in model.mesh.thermocouples.items():
+                identifier = name.replace("THERMOCOUPLE - ", "")
+                if identifier.startswith("O"):
+                    tc_concrete_indices.append(node.uid)
+                elif identifier.startswith("V"):
+                    tc_rebar_indices.append(node.uid)
 
             # Get critical temperature
             T_crit = self.spin_critical_temp.value()  # Celsius
 
             # Convert results to Celsius for analysis
-            import numpy as np
-            results_celsius = [np.asarray(temp_K) - 273.15 for temp_K in self.project.results]
-            time_steps_min = [t / 60.0 for t in self.project.time_steps]  # Convert to minutes
+
+            results_celsius = np.asarray(self.project.results) - 273.15  # Convert from Kelvin to Celsius
+            time_steps_min = np.asarray(self.project.time_steps) / 60.0  # Convert to minutes
 
             # Calculate max concrete temp across all nodes
-            max_concrete_temps = [np.max(temp) for temp in results_celsius]
-            idx_max_concrete = int(np.argmax(max_concrete_temps))
-            max_concrete_temp = max_concrete_temps[idx_max_concrete]
-            time_max_concrete = time_steps_min[idx_max_concrete]
+            idx_max_concrete = np.unravel_index(np.argmax(results_celsius), results_celsius.shape) # Get index [idx1, idx2] of max temp
+            max_concrete_temp = results_celsius[idx_max_concrete]
+            time_max_concrete = time_steps_min[idx_max_concrete[0]]
 
             # Calculate max rebar temp across thermocouple nodes
-            max_rebar_temps = [np.max(temp[tc_indices]) for temp in results_celsius]
-            idx_max_rebar = int(np.argmax(max_rebar_temps))
-            max_rebar_temp = max_rebar_temps[idx_max_rebar]
-            time_max_rebar = time_steps_min[idx_max_rebar]
+            temps_rebar = results_celsius[:, tc_rebar_indices]
+            idx_max_rebar = np.unravel_index(np.argmax(temps_rebar), temps_rebar.shape)
+            max_rebar_temp = temps_rebar[idx_max_rebar]
+            time_max_rebar = time_steps_min[idx_max_rebar[0]]
 
             # Find critical failure time (first time any thermocouple exceeds T_crit)
-            critical_time = None
-            for i, temp in enumerate(results_celsius):
-                if np.max(temp[tc_indices]) > T_crit:
-                    critical_time = time_steps_min[i]
-                    break
+            # critical_time = None
+            # for i, temp in enumerate(results_celsius):
+            #     if np.max(temp[tc_rebar_indices]) > T_crit:
+            #         critical_time = time_steps_min[i]
+            #         break
+            mask = temps_rebar >= T_crit
+
+            if not mask.any():
+                critical_thermocouple = None
+                critical_time = None
+            else:
+                flat_idx = np.argmax(mask)
+                critical_time, critical_thermocouple = np.unravel_index(flat_idx, mask.shape)
 
             # Format statistics display
             stats_text = "<b>Statistiky Teplotní Analýzy:</b><br><br>"
@@ -399,9 +414,9 @@ class ResultsControlPanel(QWidget):
 
             stats_text += f"<b>Kritická Teplota: {T_crit:.0f} °C</b><br>"
             if critical_time is not None:
-                stats_text += f"&nbsp;&nbsp;• ⚠ Překročeno v čase: {critical_time:.1f} min<br>"
+                stats_text += f"&nbsp;&nbsp;• ⚠ Překročena v čase: {critical_time:.1f} min<br>"
             else:
-                stats_text += f"&nbsp;&nbsp;• ✓ Nepřekročeno během analýzy<br>"
+                stats_text += f"&nbsp;&nbsp;• Kritické teploty nebylo dosaženo.<br>"
 
             self.lbl_stats.setText(stats_text)
             self.btn_plot_rebar.setEnabled(True)
