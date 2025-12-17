@@ -1,0 +1,190 @@
+"""
+Background Workers (Threading)
+==============================
+This module contains QThread subclasses for handling long-running tasks.
+
+Why is this file needed?
+------------------------
+1. Responsiveness: If we run the FEM solver on the main thread, the GUI freezes.
+   These classes push calculations to a background thread.
+2. Signals: They provide a safe way to update the GUI (Progress Bars, Logs)
+   from the background process using Qt Signals.
+
+Classes:
+    SolverWorker: Runs the FEM analysis loop.
+"""
+import numpy as np
+import time
+import logging
+from PySide6.QtCore import QThread, Signal
+
+from temperatureanalysis.controller.fea.pre.material import Concrete, Steel, ThermalConductivityBoundary, \
+    GenericTabulatedMaterial
+from temperatureanalysis.controller.fea.pre.mesh import Mesh
+from temperatureanalysis.controller.fea.pre.fire_curves import ISO834FireCurve, HCFireCurve, HCMFireCurve, \
+    RABTZTVTrainFireCurve, RABTZTVCarFireCurve, RWSFireCurve, TabulatedFireCurve, Zone, ZonalFireCurve
+from temperatureanalysis.controller.fea.analysis.model import Model
+from temperatureanalysis.controller.fea.solvers.solver import Solver
+from temperatureanalysis.model.bc import StandardFireCurveConfig, StandardCurveType, TabulatedFireCurveConfig, \
+    ZonalFireCurveConfig
+from temperatureanalysis.model.materials import ConcreteMaterial, GenericMaterial
+from temperatureanalysis.model.state import ProjectState
+
+logger = logging.getLogger(__name__)
+
+
+def prepare_simulation_model(project: ProjectState) -> Model:
+    """
+    Loads the mesh and prepares the FEA model.
+
+    CRITICAL: This MUST be called in the MAIN THREAD because Mesh.from_file
+    calls gmsh.initialize(), which registers signal handlers (not allowed in threads).
+    """
+    logger.info("Initializing FEA Model...")
+
+    # 1. Define BCs & Materials
+    sel_fire_curve = project.selected_fire_curve
+    if isinstance(sel_fire_curve, StandardFireCurveConfig):
+        # Get type of standard curve
+        match sel_fire_curve.curve_type:
+            case StandardCurveType.ISO834:
+                fire_curve = ISO834FireCurve()
+            case StandardCurveType.HC:
+                fire_curve = HCFireCurve()
+            case StandardCurveType.HCM:
+                fire_curve = HCMFireCurve()
+            case StandardCurveType.RABT_TRAIN:
+                fire_curve = RABTZTVTrainFireCurve()
+            case StandardCurveType.RABT_CAR:
+                fire_curve = RABTZTVCarFireCurve()
+            case StandardCurveType.RWS:
+                fire_curve = RWSFireCurve()
+            case _:
+                raise ValueError(f"Unsupported standard fire curve type: {sel_fire_curve.curve_type}")
+    elif isinstance(sel_fire_curve, TabulatedFireCurveConfig):
+        fire_curve = TabulatedFireCurve(
+            name=sel_fire_curve.name,
+            temperatures=np.array(sel_fire_curve.temperatures) + 273.15,  # C to K
+            times=np.array(sel_fire_curve.times)
+        )
+    elif isinstance(sel_fire_curve, ZonalFireCurveConfig):
+        zones = []
+        for i, zone_config in enumerate(sel_fire_curve.zones):
+            zone = Zone(y_min=zone_config.y_min, y_max=zone_config.y_max)
+            fc_zone = TabulatedFireCurve(
+                name=f"{sel_fire_curve.name} - Zone {i+1}",
+                temperatures=np.array(zone_config.curve.temperatures) + 273.15,  # C to K
+                times=np.array(zone_config.curve.times)
+            )
+            zones.append((zone, fc_zone))
+        fire_curve = ZonalFireCurve(zones=zones)
+    else:
+        raise ValueError(f"Unsupported fire curve type: {type(sel_fire_curve)}")
+
+
+    # Set material
+    sel_mat = project.selected_material
+    if isinstance(sel_mat, ConcreteMaterial):
+        material = Concrete(
+            name=sel_mat.name,
+            initial_density=sel_mat.initial_density,
+            initial_moisture_content=sel_mat.initial_moisture_content,
+            boundary=sel_mat.conductivity_boundary
+        )
+    elif isinstance(sel_mat, GenericMaterial):
+        material = GenericTabulatedMaterial(
+            name=sel_mat.name,
+            densities=[
+                np.array(sel_mat.density.temperatures) + 273.15,  # C to K,
+                np.array(sel_mat.density.values)
+            ],
+            thermal_conductivities=[
+                np.array(sel_mat.conductivity.temperatures) + 273.15,  # C to K,
+                np.array(sel_mat.conductivity.values)
+            ],
+            specific_heat_capacities=[
+                np.array(sel_mat.specific_heat_capacity.temperatures) + 273.15,  # C to K,
+                np.array(sel_mat.specific_heat_capacity.values)
+            ],
+            color="blue"
+        )
+    else:
+        raise ValueError(f"Unsupported material type: {type(sel_mat)}")
+
+    logger.info(f"Initialized material: {material.name}")
+
+    # 2. Load mesh
+    logger.info(f"Loading mesh from: {project.mesh_path}")
+    mesh = Mesh.from_file(
+        filename=project.mesh_path,
+        physical_surface_to_material_mapping={
+            "Beton": material,
+        },
+        physical_line_to_fire_curve_mapping={
+            "FIRE EXPOSED SIDE": fire_curve
+        }
+    )
+
+    # 3. Create Analysis Model
+    return Model(mesh=mesh)
+
+
+class SolverWorker(QThread):
+    # Signals to update the UI from the background
+    progress_updated = Signal(int, str)  # e.g., (10, "Solving step 5/50...")
+    error_occurred = Signal(str)
+    results_ready = Signal(list, list)  # (temperatures, time_steps) - THREAD SAFE
+
+    def __init__(self, model: Model, project_state: ProjectState):
+        super().__init__()
+        self.model = model
+        self.project = project_state
+        self.is_running = True
+
+    def run(self):
+        try:
+            logger.info("Starting Solver in Background Thread...")
+
+            if not self.project.mesh_path:
+                raise ValueError("Mesh not generated.")
+
+            self.progress_updated.emit(0, "Spouštím výpočet...")
+
+            # 4. Initialize Solver
+            solver = Solver(model=self.model)
+
+            # 5. Run Simulation
+            tot_time = self.project.total_time_minutes * 60.0  # total simulation time in seconds
+            dt = self.project.time_step  # time step in seconds
+
+            # ---- Progress callback ----
+            def progress_callback(percentage: int) -> None:
+                percentage = min(percentage, 98) # Cap at 99% until done
+                msg = f"Probíhá výpočet... {percentage}% dokončeno."
+                self.progress_updated.emit(percentage, msg)
+
+            # --- RUN SOLVER ---
+            # Try passing the callback. If Solver doesn't accept it yet, fallback.
+            try:
+                result = solver.solve(
+                    dt=dt,
+                    total_time=tot_time,
+                    callback=progress_callback  # <--- Injecting callback
+                )
+            except TypeError:
+                logger.warning("Solver.solve() does not accept 'callback' argument. Running without live updates.")
+                result = solver.solve(dt=dt, total_time=tot_time)
+
+            self.progress_updated.emit(99, "Zpracovávám výsledky...")
+
+            logger.info("Extracting results from the model...")
+            # THREAD SAFE: Emit signal instead of direct assignment
+            # Main thread will handle the actual assignment to project state
+            self.results_ready.emit(result.temperatures, result.time_steps)
+
+        except Exception as e:
+            logger.error(f"Error in SolverWorker: {e}")
+            self.error_occurred.emit(str(e))
+
+    def stop(self) -> None:
+        self.is_running = False

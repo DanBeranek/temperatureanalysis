@@ -3,7 +3,7 @@
 import pytest
 from click.testing import CliRunner
 
-from temperatureanalysis import __main__
+from temperatureanalysis import main
 
 
 @pytest.fixture
