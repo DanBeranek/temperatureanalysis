@@ -25,6 +25,7 @@ from PySide6.QtWidgets import QLabel
 from PySide6.QtWidgets import QMainWindow
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QScrollArea
 from PySide6.QtWidgets import QSplitter
 from PySide6.QtWidgets import QStackedWidget
 from PySide6.QtWidgets import QTabBar
@@ -80,12 +81,40 @@ def get_app_authors() -> str:
 
 
 class ClickableLogoLabel(QLabel):
-    """A clickable logo label that opens a URL when clicked."""
+    """A clickable logo label that opens a URL when clicked and scales to width."""
 
     def __init__(self, url: str, parent=None):
         super().__init__(parent)
         self.url = url
         self.setCursor(Qt.PointingHandCursor)
+        self._original_pixmap = None
+
+        # Allow label to scale
+        self.setMinimumWidth(1)
+        self.setAlignment(Qt.AlignCenter)
+        self.setScaledContents(False)
+
+    def set_source_pixmap(self, pixmap):
+        """Set the source pixmap that will be scaled."""
+        self._original_pixmap = pixmap
+        if pixmap is None:
+            self.clear()
+        else:
+            self._update_display()
+
+    def resizeEvent(self, event):
+        """Handle resize to scale pixmap to current width."""
+        if self._original_pixmap:
+            self._update_display()
+        super().resizeEvent(event)
+
+    def _update_display(self):
+        """Scale pixmap to current widget width while maintaining aspect ratio."""
+        if self._original_pixmap and not self._original_pixmap.isNull():
+            w = self.width()
+            if w > 0:
+                scaled = self._original_pixmap.scaledToWidth(w, Qt.SmoothTransformation)
+                super().setPixmap(scaled)
 
     def mousePressEvent(self, event):
         """Handle mouse click to open URL."""
@@ -219,13 +248,11 @@ class MainWindow(QMainWindow):
 
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Scale logo to reasonable size (width=300px, maintain aspect ratio)
-            scaled_pixmap = pixmap.scaledToWidth(300, Qt.SmoothTransformation)
-            logo_label.setPixmap(scaled_pixmap)
+            # Use the new method that handles scaling dynamically to panel width
+            logo_label.set_source_pixmap(pixmap)
         else:
             logo_label.setText("TAČR")
 
-        logo_label.setAlignment(Qt.AlignCenter)
         logo_label.setContentsMargins(10, 10, 10, 10)
         logo_label.setToolTip("Tento projekt je podporován Technologickou agenturou ČR")
 
@@ -503,9 +530,21 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle("O aplikaci")
         dialog.setModal(True)
-        dialog.setMinimumWidth(600)
+        dialog.resize(650, 600)  # Set a comfortable default size
 
-        layout = QVBoxLayout(dialog)
+        # Main layout for dialog
+        main_layout = QVBoxLayout(dialog)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Create scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        # Content widget inside scroll area
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(12)
         layout.setContentsMargins(25, 25, 25, 25)
 
@@ -594,14 +633,21 @@ class MainWindow(QMainWindow):
         credits_label.setWordWrap(True)
         layout.addWidget(credits_label)
 
-        # Footer: Close button
+        # Add stretch to push content to top
         layout.addStretch()
+
+        # Set content widget to scroll area
+        scroll.setWidget(content_widget)
+        main_layout.addWidget(scroll)
+
+        # Footer: Close button (outside scroll area, always visible)
         button_layout = QVBoxLayout()
+        button_layout.setContentsMargins(25, 10, 25, 15)
         close_button = QPushButton("Zavřít")
         close_button.setDefault(True)
         close_button.clicked.connect(dialog.accept)
         button_layout.addWidget(close_button)
-        layout.addLayout(button_layout)
+        main_layout.addLayout(button_layout)
 
         dialog.exec()
 
