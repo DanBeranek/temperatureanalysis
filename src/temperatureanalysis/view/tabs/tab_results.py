@@ -2,7 +2,7 @@ import datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar, QFormLayout,
-    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog, QCheckBox
+    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog, QCheckBox, QComboBox
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 import logging
@@ -16,9 +16,18 @@ from temperatureanalysis.view.dialogs.thermocouple_plot_dialog import Thermocoup
 
 logger = logging.getLogger(__name__)
 
+COLORMAPS = [
+    ("Rainbow", "rainbow4"),
+    ("Fire", "fire"),
+    ("Coolwarm", "coolwarm"),
+    ("Inferno", "inferno"),
+    ("Viridis", "viridis"),
+]
+# Available colormaps for temperature visualization
+
 class ResultsControlPanel(QWidget):
-    # Signal: (mesh_path, temperature_array, v_min_override, reset_camera)
-    update_view_requested = Signal(str, object, object, bool)
+    # Signal: (mesh_path, temperature_array, v_min_override, reset_camera, colormap)
+    update_view_requested = Signal(str, object, object, bool, str)
     results_generated = Signal()
 
     def __init__(self, project_state: ProjectState) -> None:
@@ -128,6 +137,18 @@ class ResultsControlPanel(QWidget):
         hbox_min.addWidget(self.spin_vmin)
 
         l_vis.addLayout(hbox_min)
+
+        # Colormap Selection
+        hbox_cmap = QHBoxLayout()
+        hbox_cmap.addWidget(QLabel("Barevná škála:"))
+        self.combo_colormap = QComboBox()
+        for label, value in COLORMAPS:
+            self.combo_colormap.addItem(label, value)
+        self.combo_colormap.setCurrentIndex(0)  # Default to "Fire"
+        self.combo_colormap.currentIndexChanged.connect(self.on_vis_settings_changed)
+        hbox_cmap.addWidget(self.combo_colormap)
+        hbox_cmap.addStretch()
+        l_vis.addLayout(hbox_cmap)
 
         # FPS Control
         hbox_fps = QHBoxLayout()
@@ -302,8 +323,11 @@ class ResultsControlPanel(QWidget):
         if not self.chk_auto_min.isChecked():
             v_min_override = self.spin_vmin.value()
 
+        # Get selected colormap
+        colormap = self.combo_colormap.currentData()
+
         # Emit signal to MainWindow
-        self.update_view_requested.emit(self.project.mesh_path, temp_data, v_min_override, False)
+        self.update_view_requested.emit(self.project.mesh_path, temp_data, v_min_override, False, colormap)
 
     # --- ANIMATION LOGIC ---
 

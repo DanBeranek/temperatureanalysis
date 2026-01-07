@@ -15,6 +15,7 @@ It acts as the "Dependency Injection" root. It:
 import logging
 import sys
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTranslator, QLibraryInfo
 
 from temperatureanalysis.logging_config import setup_logging
 from temperatureanalysis.model.state import ProjectState
@@ -30,14 +31,24 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Tunel: Požár")
 
-    # 3. Initialize the Data Model
+    # 3. Install Czech translations for Qt standard widgets (OK, Cancel, etc.)
+    translator = QTranslator()
+    translations_path = QLibraryInfo.path(QLibraryInfo.TranslationsPath)
+    if translator.load("qtbase_cs", translations_path):
+        app.installTranslator(translator)
+    else:
+        # Fallback: try loading from Qt6 directory
+        if translator.load("qtbase_cs", translations_path + "/Qt6"):
+            app.installTranslator(translator)
+
+    # 4. Initialize the Data Model
     project = ProjectState()
 
-    # 4. Initialize the Main Window, passing the model
+    # 5. Initialize the Main Window, passing the model
     window = MainWindow(project)
     window.show()
 
-    # 5. Start Event Loop
+    # 6. Start Event Loop
     sys.exit(app.exec())
 
 

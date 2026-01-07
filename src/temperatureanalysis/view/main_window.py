@@ -228,7 +228,8 @@ class MainWindow(QMainWindow):
         mesh_path: str,
         scalars,
         v_min_limit: Optional[float] = None,
-        reset_camera: bool = False
+        reset_camera: bool = False,
+        colormap: str = "fire"
     ) -> None:
         """Called when user scrubs the time slider."""
         celsius_data = np.asarray(self.project.results) - 273.15
@@ -239,7 +240,7 @@ class MainWindow(QMainWindow):
         else:
             v_min = np.min(celsius_data)
         v_max = np.max(celsius_data)
-        self.visualizer.update_scene(self.project, scalars, v_min=v_min, v_max=v_max, reset_camera=reset_camera, levels=[500])
+        self.visualizer.update_scene(self.project, scalars, v_min=v_min, v_max=v_max, reset_camera=reset_camera, levels=[500], colormap=colormap)
 
     def on_export_mesh_menu(self) -> None:
         """Called when clicking Export in the menu bar."""
