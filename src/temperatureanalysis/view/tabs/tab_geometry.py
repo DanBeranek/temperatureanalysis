@@ -195,7 +195,7 @@ class CustomShapeWidget(QWidget):
         self.circle_thick_spin.setSingleStep(0.05)
         self.circle_thick_spin.setValue(0.5)
         self.circle_thick_spin.valueChanged.connect(lambda v: self._update_param("thickness", v))
-        layout.addRow("Tloušťka [m]:", self.circle_thick_spin)
+        layout.addRow("Tloušťka ostění [m]:", self.circle_thick_spin)
 
         self.circle_rebar_spin = QDoubleSpinBox()
         self.circle_rebar_spin.setRange(10.0, 500.0)
@@ -203,7 +203,7 @@ class CustomShapeWidget(QWidget):
         self.circle_rebar_spin.setSingleStep(5.0)
         self.circle_rebar_spin.setValue(100.0)
         self.circle_rebar_spin.valueChanged.connect(lambda v: self._update_param("rebar_depth", v / 1000))
-        layout.addRow("Hloubka výztuže [mm]:", self.circle_rebar_spin)
+        layout.addRow("Vzdálenost těžiště výztuže od líce [mm]:", self.circle_rebar_spin)
 
     def _setup_box_page(self, parent: QWidget) -> None:
         layout = QFormLayout(parent)
@@ -225,7 +225,7 @@ class CustomShapeWidget(QWidget):
         self.box_thick_spin.setSingleStep(0.05)
         self.box_thick_spin.setValue(0.5)
         self.box_thick_spin.valueChanged.connect(lambda v: self._update_param("thickness", v))
-        layout.addRow("Tloušťka [m]:", self.box_thick_spin)
+        layout.addRow("Tloušťka ostění [m]:", self.box_thick_spin)
 
         self.box_rebar_spin = QDoubleSpinBox()
         self.box_rebar_spin.setRange(10.0, 500.0)
@@ -233,7 +233,7 @@ class CustomShapeWidget(QWidget):
         self.box_rebar_spin.setSingleStep(5.0)
         self.box_rebar_spin.setValue(100.0)
         self.box_rebar_spin.valueChanged.connect(lambda v: self._update_param("rebar_depth", v / 1000))
-        layout.addRow("Hloubka výztuže [mm]:", self.box_rebar_spin)
+        layout.addRow("Vzdálenost těžiště výztuže od líce [mm]:", self.box_rebar_spin)
 
     def _update_param(self, key: str, value: float) -> None:
         # Check if attribute exists on current params object to avoid errors during transitions
@@ -310,7 +310,7 @@ class StandardProfileWidget(QWidget):
         self.thick_spin.setSingleStep(0.05)
         self.thick_spin.setValue(val_t)
         self.thick_spin.valueChanged.connect(self.on_thickness_changed)
-        self.layout_form.addRow("Tloušťka [m]:", self.thick_spin)
+        self.layout_form.addRow("Tloušťka ostění [m]:", self.thick_spin)
 
         val_r = p.rebar_depth * 1000 if isinstance(p, PredefinedParams) else 100.0
 
@@ -320,7 +320,7 @@ class StandardProfileWidget(QWidget):
         self.rebar_spin.setSingleStep(5.0)
         self.rebar_spin.setValue(val_r)
         self.rebar_spin.valueChanged.connect(self.on_rebar_depth_changed)
-        self.layout_form.addRow("Hloubka výztuže [mm]:", self.rebar_spin)
+        self.layout_form.addRow("Vzdálenost těžiště výztuže od líce [mm]:", self.rebar_spin)
 
         self.layout_main.addWidget(self.form_widget)
 
@@ -517,7 +517,7 @@ class GeometryControlPanel(QWidget):
         self.category_combo.addItems(self.category_items)
         self.category_combo.currentIndexChanged.connect(self.on_category_changed)
 
-        cat_group = QGroupBox("Kategorie Profilu")
+        cat_group = QGroupBox("Kategorie profilu")
         cat_layout = QVBoxLayout(cat_group)
         cat_layout.addWidget(self.category_combo)
         self.layout_main.addWidget(cat_group)

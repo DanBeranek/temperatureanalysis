@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
         # Define Tabs
         self.tab_bar.addTab("1. Geometrie")
         self.tab_bar.addTab("2. Materiály")
-        self.tab_bar.addTab("3. Okrajové Podmínky")
+        self.tab_bar.addTab("3. Okrajové podmínky")
         self.tab_bar.addTab("4. Mesh")
         self.tab_bar.addTab("5. Výsledky")
 
@@ -261,6 +261,7 @@ class MainWindow(QMainWindow):
     def _create_actions(self) -> None:
         # File Actions
         self.act_new = QAction("Nový Projekt", self)
+        self.act_new.setShortcut("Ctrl+N")
         self.act_new.triggered.connect(self.on_file_new)
 
         self.act_open = QAction("Otevřít...", self)
@@ -283,7 +284,7 @@ class MainWindow(QMainWindow):
         self.act_export_mesh.triggered.connect(self.on_export_mesh_menu)
         self.act_export_mesh.setEnabled(False)  # Disabled until mesh exists
 
-        self.act_export_vtu = QAction("Exportovat do ParaView", self)
+        self.act_export_vtu = QAction("Exportovat výsledky", self)
         self.act_export_vtu.triggered.connect(self.on_export_to_paraview_menu)
         self.act_export_vtu.setEnabled(False)  # Disabled until results exists
 
@@ -308,7 +309,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.act_exit)
 
-        analysis_menu = menu_bar.addMenu("&Výpočet")
+        analysis_menu = menu_bar.addMenu("&Export")
         analysis_menu.addAction(self.act_export_mesh)
         analysis_menu.addAction(self.act_export_vtu)
 
@@ -558,7 +559,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(version_label)
 
         # Description
-        desc_label = QLabel("Software pro teplotní analýzu tunelového ostění.")
+        desc_label = QLabel("Software pro výpočet teplot v nosné konstrukci tunelu při požáru")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
 
@@ -628,7 +629,7 @@ class MainWindow(QMainWindow):
         # Credits - Used Libraries
         credits_label = QLabel(
             "<b>Použité knihovny:</b> PySide6, PyVista, NumPy, SciPy, Gmsh, "
-            "matplotlib, h5py, pypardiso, numba, meshio, colorcet, pyqtgraph"
+            "h5py, pypardiso, numba, meshio, colorcet, pyqtgraph"
         )
         credits_label.setWordWrap(True)
         layout.addWidget(credits_label)

@@ -50,7 +50,7 @@ class CsvImportDialog(QDialog):
         self.csv_data = []
         self.headers = []
 
-        self.setWindowTitle("Importovat CSV - Nastavení")
+        self.setWindowTitle("Import okrajové podmínky z CSV")
         self.resize(800, 600)
 
         self._load_csv_preview()
@@ -318,10 +318,6 @@ class TabulatedCurveEditor(QWidget):
 
         layout = QVBoxLayout(self)
 
-        # Info label about units
-        info = QLabel("<b>Jednotky:</b> Čas v Minutách, Teplota v °C")
-        layout.addWidget(info)
-
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(2)
@@ -333,7 +329,7 @@ class TabulatedCurveEditor(QWidget):
         h_tools = QHBoxLayout()
         btn_add = QPushButton("+ Bod")
         btn_del = QPushButton("- Bod")
-        btn_imp = QPushButton("Import CSV...")
+        btn_imp = QPushButton("Import z CSV...")
         h_tools.addWidget(btn_add)
         h_tools.addWidget(btn_del)
         h_tools.addWidget(btn_imp)
@@ -556,8 +552,8 @@ class ZonalCurveEditor(QWidget):
         layout = QVBoxLayout(self)
 
         # Info about zonal curves
-        info = QLabel("<b>Zónová křivka:</b> Definujte požární křivky pro různé výšky konstrukce. "
-                      "Zóny musí pokrývat celou výšku bez mezer.")
+        info = QLabel("<b>Vícezónová okrajová podmínka:</b> Definujte průběh teploty "
+                      "po výšce konstrukce. Zóny musí pokrývat celou výšku bez mezer.")
         info.setWordWrap(True)
         layout.addWidget(info)
 
@@ -567,15 +563,15 @@ class ZonalCurveEditor(QWidget):
 
         self.table = QTableWidget()
         self.table.setColumnCount(2)
-        self.table.setHorizontalHeaderLabels(["Y Min [m]", "Y Max [m]"])
+        self.table.setHorizontalHeaderLabels(["Y min [m]", "Y max [m]"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.itemSelectionChanged.connect(self._on_zone_selected)
         l_zones.addWidget(self.table)
 
         h_tools = QHBoxLayout()
-        btn_add = QPushButton("Přidat Zónu")
-        btn_del = QPushButton("Smazat Zónu")
+        btn_add = QPushButton("Přidat zónu")
+        btn_del = QPushButton("Smazat zónu")
         btn_add.clicked.connect(self._add_zone)
         btn_del.clicked.connect(self._del_zone)
         h_tools.addWidget(btn_add)
@@ -644,7 +640,7 @@ class ZonalCurveEditor(QWidget):
             self.table.setItem(i, 1, QTableWidgetItem(f"{z.y_max:.2f}"))
 
             # Zone can only be Tabulated
-            t_str = "Vlastní (Tabulka)"
+            t_str = "Vlastní (jednozónová)"
             item = QTableWidgetItem(t_str)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)  # Read-only
             self.table.setItem(i, 2, item)
@@ -824,7 +820,7 @@ class ZonalCurveEditor(QWidget):
 class FireCurveDialog(QDialog):
     def __init__(self, project_state, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Knihovna Požárních Křivek")
+        self.setWindowTitle("Knihovna okrajových podmínek")
         self.resize(1200, 800)
 
         self.project_ref = project_state
@@ -845,22 +841,22 @@ class FireCurveDialog(QDialog):
 
         # LEFT: List and Action Buttons
         left = QVBoxLayout()
-        left.addWidget(QLabel("Dostupné křivky:"))
+        left.addWidget(QLabel("Dostupné okrajové podmínky:"))
         self.list_widget = QListWidget()
         self.list_widget.currentItemChanged.connect(self.on_selection)
         left.addWidget(self.list_widget)
 
         # Action buttons
-        btn_add = QPushButton("Nová Křivka")
+        btn_add = QPushButton("Nová")
         btn_add.clicked.connect(self.on_add)
         left.addWidget(btn_add)
 
-        self.btn_copy = QPushButton("Kopírovat Křivku")
+        self.btn_copy = QPushButton("Kopírovat")
         self.btn_copy.clicked.connect(self.on_copy)
         self.btn_copy.setEnabled(False)
         left.addWidget(self.btn_copy)
 
-        self.btn_delete = QPushButton("Smazat Křivku")
+        self.btn_delete = QPushButton("Smazat")
         self.btn_delete.clicked.connect(self.on_delete)
         self.btn_delete.setEnabled(False)
         left.addWidget(self.btn_delete)
@@ -1005,7 +1001,7 @@ class FireCurveDialog(QDialog):
 
     def on_add(self):
         """Add a new curve (defaults to Tabulated type)."""
-        base = "Nová křivka"
+        base = "Nová okrajová podmínka"
         name = base
         i = 1
         while self.working_library.get_fire_curve(name):
