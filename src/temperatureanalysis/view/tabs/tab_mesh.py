@@ -26,7 +26,7 @@ class MeshControlPanel(QWidget):
         layout = QVBoxLayout(self)
 
         # --- Settings Group ---
-        grp = QGroupBox("Nastavení Sítě")
+        grp = QGroupBox("Nastavení sítě")
         form = QFormLayout(grp)
 
         # 1. Gradient Toggle
@@ -41,7 +41,7 @@ class MeshControlPanel(QWidget):
         self.lc_inner_spin.setValue(0.03)  # Default fine
         self.lc_inner_spin.setSuffix(" m")
         self.lc_inner_spin.valueChanged.connect(self.on_inner_spin_changed)
-        form.addRow("Velikost elementu (Vnitřní):", self.lc_inner_spin)
+        form.addRow("Velikost elementu (líc):", self.lc_inner_spin)
 
         # 3. Outer Size (Optional)
         self.lc_outer_spin = QDoubleSpinBox()
@@ -50,7 +50,7 @@ class MeshControlPanel(QWidget):
         self.lc_outer_spin.setValue(0.1)  # Default coarse
         self.lc_outer_spin.setSuffix(" m")
         self.lc_outer_spin.setEnabled(False)  # Disabled by default
-        form.addRow("Velikost elementu (Vnější):", self.lc_outer_spin)
+        form.addRow("Velikost elementu (rub):", self.lc_outer_spin)
 
         # 4. Thermocouple Count
         self.thermocouple_count_spin = QSpinBox()
@@ -63,7 +63,7 @@ class MeshControlPanel(QWidget):
         layout.addWidget(grp)
 
         # --- Actions ---
-        self.btn_generate = QPushButton("Generovat Síť")
+        self.btn_generate = QPushButton("Generovat síť")
         self.btn_generate.setMinimumHeight(40)
         self.btn_generate.clicked.connect(self.on_generate_clicked)
         layout.addWidget(self.btn_generate)
@@ -157,7 +157,7 @@ class MeshControlPanel(QWidget):
 
         except Exception as e:
             self._set_status_styled("Chyba při generování", "red")
-            QMessageBox.critical(self, "Chyba Sítě", str(e))
+            QMessageBox.critical(self, "Chyba sítě", str(e))
 
         finally:
             self.btn_generate.setEnabled(True)
@@ -176,7 +176,7 @@ class MeshControlPanel(QWidget):
             default_name = f"{base}_mesh.msh"
 
         dest_path, _ = QFileDialog.getSaveFileName(
-            self, "Exportovat Síť", default_name, "Gmsh Files (*.msh);;All Files (*)"
+            self, "Exportovat síť", default_name, "Gmsh Files (*.msh);;All Files (*)"
         )
 
         if dest_path:
@@ -197,8 +197,18 @@ class MeshControlPanel(QWidget):
 
     def update_status_from_state(self) -> None:
         if self.project.mesh_path:
-            self._set_status_styled("Stav: Načteno ze souboru ✓", "blue", bold=True)
-            self.lbl_stats.setText("")
+            self._set_status_styled("Stav: Načteno ze souboru ✓", "green", bold=True)
+
+            # Try to read mesh statistics from the loaded file
+            stats = self.mesher.read_mesh_stats(self.project.mesh_path)
+            if stats:
+                self.lbl_stats.setText(
+                    f"Počet uzlů: {stats.num_nodes}\n"
+                    f"Počet elementů: {stats.num_elements}"
+                )
+            else:
+                self.lbl_stats.setText("")
+
             self.btn_export.setEnabled(True)
         else:
             self.status_message = "Stav: Síť nebyla generována."

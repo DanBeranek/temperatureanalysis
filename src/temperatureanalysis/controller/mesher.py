@@ -16,6 +16,7 @@ import tempfile
 import uuid
 
 import gmsh
+import meshio
 import os
 import logging
 from typing import Dict, Tuple, List, Optional, TYPE_CHECKING
@@ -341,4 +342,39 @@ class GmshMesher:
             assume_symmetric=assume_symmetric,
             num_points=num_points
         )
+
+    @staticmethod
+    def read_mesh_stats(mesh_path: str) -> Optional[MeshStats]:
+        """
+        Read mesh statistics (number of nodes and elements) from an existing mesh file.
+
+        Args:
+            mesh_path: Path to the mesh file (.msh format)
+
+        Returns:
+            MeshStats object containing filepath, num_nodes, and num_elements,
+            or None if the file cannot be read
+        """
+        if not mesh_path or not os.path.exists(mesh_path):
+            return None
+
+        try:
+            mesh = meshio.read(mesh_path)
+
+            # Count nodes
+            num_nodes = len(mesh.points)
+
+            # Count elements (sum across all cell types)
+            num_elements = sum(len(cells.data) for cells in mesh.cells)
+
+            logger.info(f"Read mesh stats from {mesh_path}: {num_nodes} nodes, {num_elements} elements")
+
+            return MeshStats(
+                filepath=mesh_path,
+                num_nodes=num_nodes,
+                num_elements=num_elements
+            )
+        except Exception as e:
+            logger.warning(f"Failed to read mesh statistics from {mesh_path}: {e}")
+            return None
 
