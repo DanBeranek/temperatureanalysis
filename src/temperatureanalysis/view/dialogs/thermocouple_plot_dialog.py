@@ -137,7 +137,7 @@ class ThermocouplePlotDialog(QDialog):
         self.time_steps = time_steps
         self.critical_temp = critical_temp
 
-        self.setWindowTitle("Graf Teplot Termočlánků")
+        self.setWindowTitle("Průběh teplot v termočláncích")
         self.resize(1200, 700)
 
         # Categorize thermocouples
@@ -170,7 +170,7 @@ class ThermocouplePlotDialog(QDialog):
         left_panel.setMaximumWidth(250)
 
         # Title
-        title = QLabel("<h3>Výběr Termočlánků</h3>")
+        title = QLabel("<h3>Výběr termočlánků</h3>")
         title.setAlignment(Qt.AlignCenter)
         left_layout.addWidget(title)
 
@@ -220,7 +220,7 @@ class ThermocouplePlotDialog(QDialog):
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setLabel('bottom', 'Čas [min]', color='black')
         self.plot_widget.setLabel('left', 'Teplota [°C]', color='black')
-        self.plot_widget.setTitle('Historie Teplot Termočlánků', color='black', size='14pt')
+        self.plot_widget.setTitle('Historie teplot termočlánků', color='black', size='14pt')
         self.plot_widget.getAxis('bottom').setPen('k')
         self.plot_widget.getAxis('left').setPen('k')
         self.plot_widget.getAxis('bottom').setTextPen('k')
