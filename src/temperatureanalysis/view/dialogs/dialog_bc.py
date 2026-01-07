@@ -584,6 +584,11 @@ class ZonalCurveEditor(QWidget):
         self.grp_zone_detail.setEnabled(False)
         l_detail = QVBoxLayout(self.grp_zone_detail)
 
+        # Zone limits info label
+        self.lbl_zone_limits = QLabel()
+        self.lbl_zone_limits.setWordWrap(True)
+        l_detail.addWidget(self.lbl_zone_limits)
+
         # Tabulated editor for zone
         self.edit_zone_tab = TabulatedCurveEditor()
         self.edit_zone_tab.dataChanged.connect(self.dataChanged)
@@ -710,6 +715,15 @@ class ZonalCurveEditor(QWidget):
             # Reload table to show corrected values
             self._load_zones_table()
 
+            # Update the zone limits label if a zone is currently selected
+            current_row = self.table.currentRow()
+            if 0 <= current_row < len(self.current_config.zones):
+                zone = self.current_config.zones[current_row]
+                self.lbl_zone_limits.setText(
+                    f"<b>Zóna {current_row + 1}:</b> Výška Y = {zone.y_min:.2f} m až {zone.y_max:.2f} m "
+                    f"(rozsah: {zone.y_max - zone.y_min:.2f} m)"
+                )
+
         finally:
             self.table.blockSignals(False)
 
@@ -719,11 +733,18 @@ class ZonalCurveEditor(QWidget):
         row = self.table.currentRow()
         if row < 0 or row >= len(self.current_config.zones):
             self.grp_zone_detail.setEnabled(False)
+            self.lbl_zone_limits.setText("")
             self.selectionChanged.emit()
             return
 
         self.grp_zone_detail.setEnabled(True)
         zone = self.current_config.zones[row]
+
+        # Update zone limits label
+        self.lbl_zone_limits.setText(
+            f"<b>Zóna {row + 1}:</b> {zone.y_min:.2f} m až {zone.y_max:.2f} m "
+            f"(rozsah: {zone.y_max - zone.y_min:.2f} m)"
+        )
 
         # Zone curve is always Tabulated (enforced on creation)
         if isinstance(zone.curve, TabulatedFireCurveConfig):
