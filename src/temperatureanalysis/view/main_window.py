@@ -1,5 +1,4 @@
-"""
-Main Application Window
+"""Main Application Window
 =======================
 The primary GUI container that holds the Menu Bar, Toolbar, and Central Tabs.
 
@@ -10,29 +9,89 @@ Why is this file needed?
    controllers.
 """
 import os
+import tomllib
+from datetime import datetime
+
 import numpy as np
-
-from typing import Optional
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QTabBar, QStackedWidget, QFileDialog, QMessageBox
-)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QAction, QPalette
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFrame
+from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QSplitter
+from PySide6.QtWidgets import QStackedWidget
+from PySide6.QtWidgets import QTabBar
+from PySide6.QtWidgets import QVBoxLayout
+from PySide6.QtWidgets import QWidget
 
-from temperatureanalysis.model.state import ProjectState
+from temperatureanalysis import config
 from temperatureanalysis.model.io import IOManager
-from temperatureanalysis.view.widgets.plot_3d import PyVistaWidget
+from temperatureanalysis.model.state import ProjectState
+from temperatureanalysis.view.tabs.tab_bc import BCControlPanel
 
 # Import Control Panels
 from temperatureanalysis.view.tabs.tab_geometry import GeometryControlPanel
 from temperatureanalysis.view.tabs.tab_materials import MaterialsControlPanel
-from temperatureanalysis.view.tabs.tab_bc import BCControlPanel
 from temperatureanalysis.view.tabs.tab_mesh import MeshControlPanel
 from temperatureanalysis.view.tabs.tab_results import ResultsControlPanel
-
+from temperatureanalysis.view.widgets.plot_3d import PyVistaWidget
 
 VISIBLE_APP_NAME = "Požár: Tunel"
+
+
+def get_app_version() -> str:
+    """Read application version from pyproject.toml."""
+    try:
+        # Try to find pyproject.toml relative to the current file
+        project_root = os.path.join(os.path.dirname(__file__), "..", "..", "..")
+        pyproject_path = os.path.join(project_root, "pyproject.toml")
+
+        if os.path.exists(pyproject_path):
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+                return data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
+    except Exception:
+        pass
+    return "Unknown"
+
+
+def get_app_authors() -> str:
+    """Read application authors from pyproject.toml."""
+    try:
+        project_root = os.path.join(os.path.dirname(__file__), "..", "..", "..")
+        pyproject_path = os.path.join(project_root, "pyproject.toml")
+
+        if os.path.exists(pyproject_path):
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+                authors = data.get("tool", {}).get("poetry", {}).get("authors", [])
+                if authors:
+                    return authors[0]  # Return first author
+    except Exception:
+        pass
+    return "Unknown"
+
+
+class ClickableLogoLabel(QLabel):
+    """A clickable logo label that opens a URL when clicked."""
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self.url = url
+        self.setCursor(Qt.PointingHandCursor)
+
+    def mousePressEvent(self, event):
+        """Handle mouse click to open URL."""
+        if event.button() == Qt.LeftButton:
+            QDesktopServices.openUrl(QUrl(self.url))
+        super().mousePressEvent(event)
 
 class MainWindow(QMainWindow):
     def __init__(self, project_state: ProjectState) -> None:
@@ -77,7 +136,12 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Horizontal)
         main_layout.addWidget(splitter)
 
-        # --- LEFT SIDE: Control Panels (Stacked) ---
+        # --- LEFT SIDE: Control Panels (Stacked) + Logo ---
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
         self.controls_stack = QStackedWidget()
 
         # Instantiate Panels
@@ -94,7 +158,13 @@ class MainWindow(QMainWindow):
         self.controls_stack.addWidget(self.mesh_panel)  # Index 3
         self.controls_stack.addWidget(self.results_panel)  # Index 4
 
-        splitter.addWidget(self.controls_stack)
+        left_layout.addWidget(self.controls_stack)
+
+        # Add TACR logolink at the bottom
+        self.logo_label = self._create_tacr_logo()
+        left_layout.addWidget(self.logo_label)
+
+        splitter.addWidget(left_container)
 
         # --- RIGHT SIDE: Shared 3D Visualization ---
         self.visualizer = PyVistaWidget()
@@ -134,6 +204,33 @@ class MainWindow(QMainWindow):
         # Initial Render
         self.update_visualization()
 
+    def _create_tacr_logo(self) -> QWidget:
+        """Create the TACR logolink widget with appropriate theme."""
+        # Determine Theme (Dark/Light)
+        text_color = self.palette().color(QPalette.WindowText)
+        is_dark = text_color.lightness() > 128
+
+        # Choose appropriate logo
+        logo_filename = "logolink_dark.svg" if is_dark else "logolink_light.svg"
+        logo_path = os.path.join(config.ASSETS_PATH, "logolink", logo_filename)
+
+        # Create clickable logo
+        logo_label = ClickableLogoLabel("https://tacr.gov.cz/", self)
+
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            # Scale logo to reasonable size (width=300px, maintain aspect ratio)
+            scaled_pixmap = pixmap.scaledToWidth(300, Qt.SmoothTransformation)
+            logo_label.setPixmap(scaled_pixmap)
+        else:
+            logo_label.setText("TAČR")
+
+        logo_label.setAlignment(Qt.AlignCenter)
+        logo_label.setContentsMargins(10, 10, 10, 10)
+        logo_label.setToolTip("Tento projekt je podporován Technologickou agenturou ČR")
+
+        return logo_label
+
     def _create_actions(self) -> None:
         # File Actions
         self.act_new = QAction("Nový Projekt", self)
@@ -163,6 +260,14 @@ class MainWindow(QMainWindow):
         self.act_export_vtu.triggered.connect(self.on_export_to_paraview_menu)
         self.act_export_vtu.setEnabled(False)  # Disabled until results exists
 
+        # Help Actions
+        self.act_open_manual = QAction("Otevřít manuál", self)
+        self.act_open_manual.setShortcut("F1")
+        self.act_open_manual.triggered.connect(self.on_open_manual)
+
+        self.act_about = QAction("O aplikaci...", self)
+        self.act_about.triggered.connect(self.on_about)
+
     def _create_menus(self) -> None:
         menu_bar = self.menuBar()
 
@@ -179,6 +284,10 @@ class MainWindow(QMainWindow):
         analysis_menu = menu_bar.addMenu("&Výpočet")
         analysis_menu.addAction(self.act_export_mesh)
         analysis_menu.addAction(self.act_export_vtu)
+
+        help_menu = menu_bar.addMenu("&Nápověda")
+        help_menu.addAction(self.act_open_manual)
+        help_menu.addAction(self.act_about)
 
     # --- HELPER METHODS ---
     def update_window_title(self) -> None:
@@ -227,7 +336,7 @@ class MainWindow(QMainWindow):
         self,
         mesh_path: str,
         scalars,
-        v_min_limit: Optional[float] = None,
+        v_min_limit: float | None = None,
         reset_camera: bool = False,
         colormap: str = "fire"
     ) -> None:
@@ -318,8 +427,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Chyba", f"Nepodařilo se uložit soubor:\n{e}")
 
     def refresh_ui_from_state(self) -> None:
-        """
-        After loading a file, the State is updated, but the Widgets are old.
+        """After loading a file, the State is updated, but the Widgets are old.
         We need to force the Widgets to read from the State again.
         """
         # 1. Update Geometry Panel
@@ -368,6 +476,134 @@ class MainWindow(QMainWindow):
     def update_visualization(self, reset_camera: bool = True) -> None:
         # Call the new unified method
         self.visualizer.update_scene(project_state=self.project, reset_camera=reset_camera)
+
+    def on_open_manual(self) -> None:
+        """Open the manual PDF file in the system's default PDF viewer."""
+        manual_path = os.path.join(config.ASSETS_PATH, "manual.pdf")
+
+        if not os.path.exists(manual_path):
+            QMessageBox.warning(
+                self,
+                "Manuál nenalezen",
+                f"Soubor manuálu nebyl nalezen:\n{manual_path}"
+            )
+            return
+
+        # Open the file with the system's default PDF viewer
+        url = QUrl.fromLocalFile(manual_path)
+        if not QDesktopServices.openUrl(url):
+            QMessageBox.warning(
+                self,
+                "Chyba",
+                "Nepodařilo se otevřít manuál v prohlížeči PDF."
+            )
+
+    def on_about(self) -> None:
+        """Show the About dialog with application information."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("O aplikaci")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(600)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(25, 25, 25, 25)
+
+        # Header: App name
+        app_name_label = QLabel(f"<h2>{VISIBLE_APP_NAME}</h2>")
+        layout.addWidget(app_name_label)
+
+        # Version
+        version = get_app_version()
+        version_label = QLabel(f"<b>Verze:</b> {version}")
+        layout.addWidget(version_label)
+
+        # Description
+        desc_label = QLabel("Software pro teplotní analýzu tunelového ostění.")
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label)
+
+        # Author
+        author = get_app_authors()
+        author_label = QLabel(f"<b>Autor:</b> {author}")
+        author_label.setWordWrap(True)
+        layout.addWidget(author_label)
+
+        # Copyright
+        current_year = datetime.now().year
+        copyright_label = QLabel(f"<b>Copyright:</b> © {current_year} Daniel Beránek")
+        layout.addWidget(copyright_label)
+
+        # License
+        license_label = QLabel(
+            "<b>Licence:</b> Tento software je svobodný software pod licencí GNU GPL v3."
+        )
+        license_label.setWordWrap(True)
+        layout.addWidget(license_label)
+
+        # Source Code (Written Offer)
+        source_label = QLabel(
+            "<b>Zdrojový kód:</b> Zdrojový kód aplikace je dostupný na vyžádání u autora. "
+            "Pro získání zdrojového kódu kontaktujte <a href='mailto:daniel.beranek@fsv.cvut.cz'>daniel.beranek@fsv.cvut.cz</a>"
+        )
+        source_label.setWordWrap(True)
+        layout.addWidget(source_label)
+
+        # Add separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(separator)
+
+        # Funding acknowledgment
+        funding_label = QLabel(
+            "<b>Financování:</b> Tento software Software pro výpočet teplot v nosné konstrukci tunelu "
+            "při požáru (CK04000274-V2) byl vytvořen se státní podporou "
+            "Technologické agentury ČR a Ministerstva dopravy v rámci Programu DOPRAVA 2020+."
+        )
+        funding_label.setWordWrap(True)
+        layout.addWidget(funding_label)
+
+        # Project page link
+        project_link = QLabel(
+            '<b>Stránka projektu:</b> <a href="https://confire.fsv.cvut.cz/projekty/tunely-pri-pozaru/">'
+            'https://confire.fsv.cvut.cz/projekty/tunely-pri-pozaru/</a>'
+        )
+        project_link.setOpenExternalLinks(True)
+        project_link.setWordWrap(True)
+        layout.addWidget(project_link)
+
+        # TACR link
+        tacr_link = QLabel(
+            '<b>TAČR:</b> <a href="https://tacr.gov.cz/">https://tacr.gov.cz/</a>'
+        )
+        tacr_link.setOpenExternalLinks(True)
+        layout.addWidget(tacr_link)
+
+        # Add separator line
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.HLine)
+        separator2.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(separator2)
+
+        # Credits - Used Libraries
+        credits_label = QLabel(
+            "<b>Použité knihovny:</b> PySide6, PyVista, NumPy, SciPy, Gmsh, "
+            "matplotlib, h5py, pypardiso, numba, meshio, colorcet, pyqtgraph"
+        )
+        credits_label.setWordWrap(True)
+        layout.addWidget(credits_label)
+
+        # Footer: Close button
+        layout.addStretch()
+        button_layout = QVBoxLayout()
+        close_button = QPushButton("Zavřít")
+        close_button.setDefault(True)
+        close_button.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_button)
+        layout.addLayout(button_layout)
+
+        dialog.exec()
 
     def closeEvent(self, event, /) -> None:
         """Handle window close event to prompt for saving if modified."""
