@@ -188,14 +188,16 @@ class GmshMesher:
 
             # C. Thermocouple Points
             # C.1 Inner Boundary Points
+            inner_width = len(str(len(tags_inner_points)))
             for i, pt_tag in enumerate(tags_inner_points):
-                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - O{i+1}")
+                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - O{i+1:0{inner_width}d}")
 
             tags_rebar_points.insert(0, point_cache.get(rebar_pts[0]))
             tags_rebar_points.append(point_cache.get(rebar_pts[-1]))
             tags_rebar_points.reverse()
+            rebar_width = len(str(len(tags_rebar_points)))
             for i, pt_tag in enumerate(tags_rebar_points):
-                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1}")
+                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1:0{rebar_width}d}")
 
             # rebar_depth = getattr(project.geometry.parameters, "rebar_depth", 0.05)
             # thermocouple_tags = self._generate_thermocouple_points(loop, rebar_depth, point_cache, base_lc)
