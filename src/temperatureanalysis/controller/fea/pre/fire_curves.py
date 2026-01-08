@@ -69,6 +69,7 @@ class ISO834FireCurve(FireCurve):
     ISO 834 fire curve implementation.
     """
     NAME = "ISO 834, Cellulosic"
+    CONVECTIVE_COEFFICIENT = 25.0  # W/m²K
 
     def get_temperature(
         self,
@@ -94,6 +95,7 @@ class HCFireCurve(FireCurve):
     HydroCarbon fire curve implementation.
     """
     NAME = "HydroCarbon"
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     def get_temperature(
         self,
@@ -118,6 +120,7 @@ class HCMFireCurve(FireCurve):
     Modified HydroCarbon fire curve implementation according to ISO 834.
     """
     NAME = "Modified HydroCarbon"
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     def get_temperature(
         self,
@@ -142,6 +145,7 @@ class RABTZTVTrainFireCurve(FireCurve):
     RABT-ZTV (train) fire curve implementation.
     """
     NAME = "RABT-ZTV (train)"
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     TIMES = np.array([0.0, 5.0, 60.0, 170.0]) * 60.0  # Convert minutes to seconds
 
@@ -176,6 +180,7 @@ class RABTZTVCarFireCurve(FireCurve):
     RABT-ZTV (car) fire curve implementation.
     """
     NAME = "RABT-ZTV (car)"
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     TIMES = np.array([0.0, 5.0, 30.0, 140.0]) * 60.0  # Convert minutes to seconds
 
@@ -211,6 +216,7 @@ class RWSFireCurve(FireCurve):
     RWS (Rijkswaterstaat) fire curve implementation.
     """
     NAME = "RWS (Rijkswaterstaat)"
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     TIMES = np.array([0.0, 3.0, 5.0, 10.0, 30.0, 60.0, 90.0, 120.0, 180.0]) * 60.0  # Convert minutes to seconds
 
@@ -245,6 +251,7 @@ class TabulatedFireCurve(FireCurve):
     """
     User-defined fire curve based on tabulated time-temperature points.
     """
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     def __init__(
         self,
@@ -325,6 +332,7 @@ class ZonalFireCurve(FireCurve):
     A composite fire curve that applies different curves based on the Y-coordinate.
     """
     NAME = "Zonal Fire Curve"
+    CONVECTIVE_COEFFICIENT = 50.0  # W/m²K
 
     def __init__(self, zones: list[tuple[Zone, FireCurve]]):
         self.zones = zones

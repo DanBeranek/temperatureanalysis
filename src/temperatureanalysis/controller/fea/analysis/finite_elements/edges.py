@@ -141,7 +141,7 @@ class LineElement(ABC):
         Returns:
             Load vector for the element.
         """
-        alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
+        alpha = self.fire_curve.CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
         sigma = STEFAN_BOLTZMANN  # Stefan-Boltzmann constant
         e = EMISSIVITY
 
@@ -174,7 +174,7 @@ class LineElement(ABC):
         Returns:
             Tangent load vector for the element.
         """
-        alpha = CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
+        alpha = self.fire_curve.CONVECTIVE_COEFFICIENT  # Convective heat transfer coefficient
         sigma = STEFAN_BOLTZMANN  # Stefan-Boltzmann constant
         e = EMISSIVITY  # Emissivity of the concrete surface
 
