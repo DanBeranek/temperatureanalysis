@@ -254,15 +254,21 @@ def is_numeric_value(value: str) -> bool:
         return False
 
 
-def parse_csv_headers(filepath: str) -> tuple[list[str], str, bool]:
+def parse_csv_headers(filepath: str) -> tuple[list[str], str, int]:
     """
-    Parse CSV file and detect headers, delimiter, and whether headers exist.
+    Parse CSV file and detect headers, delimiter, and number of header rows.
+
+    Handles FDS-style CSVs with:
+    - Row 1: Units (s, C, C, ...)
+    - Row 2: Names (Time, TEMP_01, TEMP_02, ...)
+    - Row 3+: Data
 
     Args:
         filepath: Path to CSV file
 
     Returns:
-        (headers, delimiter, has_header) tuple
+        (headers, delimiter, num_header_rows) tuple
+        headers will be formatted as "Name [Unit]" if both rows exist
     """
     try:
         with open(filepath, 'r', encoding='utf-8-sig') as f:
@@ -277,18 +283,50 @@ def parse_csv_headers(filepath: str) -> tuple[list[str], str, bool]:
             if not rows:
                 raise ValueError("CSV soubor je prázdný")
 
-            # Detect headers (first row has non-numeric values)
             first_row = rows[0]
-            has_header = not all(is_numeric_value(cell) for cell in first_row if cell.strip())
+            num_cols = len(first_row)
 
-            if has_header:
-                headers = [cell.strip() for cell in first_row]
-            else:
-                # Generate default headers
-                num_cols = len(first_row)
+            # Check if first row is non-numeric (likely header)
+            first_row_is_header = not all(is_numeric_value(cell) for cell in first_row if cell.strip())
+
+            if not first_row_is_header:
+                # No headers at all - generate default
                 headers = [f"Sloupec {i+1}" for i in range(num_cols)]
+                return headers, delimiter, 0
 
-            return headers, delimiter, has_header
+            # Check if second row is also non-numeric (FDS format: units + names)
+            if len(rows) > 1:
+                second_row = rows[1]
+                second_row_is_header = not all(is_numeric_value(cell) for cell in second_row if cell.strip())
+
+                if second_row_is_header:
+                    # FDS format: Row 1 = units, Row 2 = names
+                    # Combine as "Name [Unit]"
+                    units_row = [cell.strip() for cell in first_row]
+                    names_row = [cell.strip() for cell in second_row]
+
+                    headers = []
+                    for i in range(num_cols):
+                        unit = units_row[i] if i < len(units_row) else ""
+                        name = names_row[i] if i < len(names_row) else ""
+
+                        # Clean quotes from name
+                        name = name.strip('"')
+
+                        if name and unit:
+                            headers.append(f"{name} [{unit}]")
+                        elif name:
+                            headers.append(name)
+                        elif unit:
+                            headers.append(f"Sloupec {i+1} [{unit}]")
+                        else:
+                            headers.append(f"Sloupec {i+1}")
+
+                    return headers, delimiter, 2  # Two header rows
+
+            # Single header row
+            headers = [cell.strip().strip('"') for cell in first_row]
+            return headers, delimiter, 1
 
     except Exception as e:
         logger.error(f"Failed to parse CSV headers: {e}")
@@ -296,7 +334,8 @@ def parse_csv_headers(filepath: str) -> tuple[list[str], str, bool]:
 
 
 def read_csv_column(filepath: str, column_index: int, time_column_index: int,
-                   time_unit: str, temp_unit: str, delimiter: str = ',') -> dict:
+                   time_unit: str, temp_unit: str, delimiter: str = ',',
+                   num_header_rows: int = 1) -> dict:
     """
     Read a single temperature column with its corresponding time values.
 
@@ -307,19 +346,17 @@ def read_csv_column(filepath: str, column_index: int, time_column_index: int,
         time_unit: 'seconds' or 'minutes'
         temp_unit: 'celsius' or 'kelvin'
         delimiter: CSV delimiter
+        num_header_rows: Number of header rows to skip (0, 1, or 2)
 
     Returns:
         {'times': [...], 'temperatures': [...]} in internal units (seconds, Celsius)
     """
     with open(filepath, 'r', encoding='utf-8-sig') as f:
-        first_line = f.readline()
-        f.seek(0)
         reader = csv.reader(f, delimiter=delimiter)
         all_rows = list(reader)
 
-        # Skip header if present
-        has_header = not all(is_numeric_value(cell) for cell in all_rows[0] if cell.strip())
-        data_rows = all_rows[1:] if has_header else all_rows
+        # Skip header rows
+        data_rows = all_rows[num_header_rows:]
 
     times = []
     temps = []
@@ -393,6 +430,8 @@ class ZonalCsvImportDialog(QDialog):
         self.csv_filepath: Optional[str] = None
         self.csv_headers: List[str] = []
         self.csv_delimiter: str = ','
+        self.num_header_rows: int = 0  # Number of header rows to skip when reading data
+        self.time_column_index: int = 0  # Index of time column (default: first column)
         self.column_mappings: Dict[int, Optional[int]] = {}  # zone_idx -> column_idx
         self.mapping_combos: List[QComboBox] = []  # Store combobox references
 
@@ -407,27 +446,25 @@ class ZonalCsvImportDialog(QDialog):
     def _init_ui(self):
         layout = QVBoxLayout(self)
 
-        # === File Selection Section ===
-        file_group = QGroupBox("Výběr souboru")
+        # === File Info Section ===
+        file_group = QGroupBox("Informace o souboru")
         file_layout = QVBoxLayout(file_group)
 
-        h_file = QHBoxLayout()
-        self.edit_filepath = QLineEdit()
-        self.edit_filepath.setReadOnly(True)
-        self.edit_filepath.setPlaceholderText("Vyberte CSV soubor...")
-        h_file.addWidget(self.edit_filepath)
-
-        btn_browse = QPushButton("Procházet...")
-        btn_browse.clicked.connect(self._on_browse_file)
-        h_file.addWidget(btn_browse)
-
-        file_layout.addLayout(h_file)
-
-        self.lbl_file_info = QLabel("Soubor nebyl vybrán")
+        self.lbl_file_info = QLabel("Načítání...")
         self.lbl_file_info.setWordWrap(True)
         file_layout.addWidget(self.lbl_file_info)
 
         layout.addWidget(file_group)
+
+        # === Time Column Selection ===
+        time_group = QGroupBox("Sloupec s časem")
+        time_layout = QFormLayout(time_group)
+
+        self.combo_time_column = QComboBox()
+        self.combo_time_column.currentIndexChanged.connect(self._on_time_column_changed)
+        time_layout.addRow("Vyberte sloupec s časem:", self.combo_time_column)
+
+        layout.addWidget(time_group)
 
         # === Zone Mapping Section ===
         mapping_group = QGroupBox("Mapování zón na sloupce CSV")
@@ -531,18 +568,28 @@ class ZonalCsvImportDialog(QDialog):
 
     def _on_file_selected(self, filepath: str):
         """Process selected CSV file."""
-        # Parse CSV headers
-        headers, delimiter, has_header = parse_csv_headers(filepath)
+        # Parse CSV headers (now returns num_header_rows instead of has_header)
+        headers, delimiter, num_header_rows = parse_csv_headers(filepath)
 
         self.csv_filepath = filepath
         self.csv_headers = headers
         self.csv_delimiter = delimiter
+        self.num_header_rows = num_header_rows
 
         # Update file info label
-        self.edit_filepath.setText(filepath)
         self.lbl_file_info.setText(
             f"<b>Načteno:</b> {len(headers)} sloupců"
         )
+
+        # Populate time column selector (preselect first column)
+        self.combo_time_column.blockSignals(True)
+        self.combo_time_column.clear()
+        for col_idx, header in enumerate(headers):
+            display_name = header if header else f"Sloupec {col_idx + 1}"
+            self.combo_time_column.addItem(display_name, col_idx)
+        self.combo_time_column.setCurrentIndex(0)  # Default to first column
+        self.time_column_index = 0
+        self.combo_time_column.blockSignals(False)
 
         # Update mapping comboboxes with ALL columns (not just TEMP_XX)
         for combo in self.mapping_combos:
@@ -563,6 +610,14 @@ class ZonalCsvImportDialog(QDialog):
         self.column_mappings.clear()
 
         # Update preview (empty initially)
+        self._update_preview()
+
+    def _on_time_column_changed(self):
+        """Handle time column selection change."""
+        self.time_column_index = self.combo_time_column.currentData()
+        if self.time_column_index is None:
+            self.time_column_index = 0
+        # Update preview with new time column
         self._update_preview()
 
     def _on_mapping_changed(self, zone_idx: int):
@@ -598,11 +653,8 @@ class ZonalCsvImportDialog(QDialog):
                 reader = csv.reader(f, delimiter=self.csv_delimiter)
                 all_rows = list(reader)
 
-            # Skip header row(s) - skip 2 rows if we have units row
-            has_header = not all(is_numeric_value(cell) for cell in all_rows[0] if cell.strip())
-            # Check if second row is also header (units)
-            skip_rows = 2 if has_header and len(all_rows) > 1 and not is_numeric_value(all_rows[1][0].strip()) else (1 if has_header else 0)
-            data_rows = all_rows[skip_rows:skip_rows + 10]  # First 10 data rows
+            # Skip header rows and get first 10 data rows
+            data_rows = all_rows[self.num_header_rows:self.num_header_rows + 10]
 
             # Setup preview table
             mapped_zones = sorted(self.column_mappings.keys())
@@ -611,17 +663,14 @@ class ZonalCsvImportDialog(QDialog):
             self.table_preview.setHorizontalHeaderLabels(headers)
             self.table_preview.setRowCount(len(data_rows))
 
-            # Find time column (assume first column)
-            time_col_idx = 0
-
             # Populate preview
             for row_idx, row in enumerate(data_rows):
-                if len(row) <= time_col_idx:
+                if len(row) <= self.time_column_index:
                     continue
 
                 # Time column
                 try:
-                    time_val = row[time_col_idx]
+                    time_val = row[self.time_column_index]
                     self.table_preview.setItem(row_idx, 0, QTableWidgetItem(time_val))
                 except (ValueError, IndexError):
                     pass
@@ -663,10 +712,11 @@ class ZonalCsvImportDialog(QDialog):
                 data = read_csv_column(
                     self.csv_filepath,
                     col_idx,
-                    0,  # Assume first column is time
+                    self.time_column_index,
                     time_unit,
                     temp_unit,
-                    self.csv_delimiter
+                    self.csv_delimiter,
+                    self.num_header_rows
                 )
 
                 if len(data['times']) < 2:
@@ -721,10 +771,11 @@ class ZonalCsvImportDialog(QDialog):
                 data = read_csv_column(
                     self.csv_filepath,
                     col_idx,
-                    0,  # Assume first column is time
+                    self.time_column_index,
                     time_unit,
                     temp_unit,
-                    self.csv_delimiter
+                    self.csv_delimiter,
+                    self.num_header_rows
                 )
                 imported_data[zone_idx] = data
             except Exception as e:
@@ -1065,7 +1116,7 @@ class ZonalCurveEditor(QWidget):
         h_tools = QHBoxLayout()
         btn_add = QPushButton("Přidat zónu")
         btn_del = QPushButton("Smazat zónu")
-        self.btn_import_csv = QPushButton("Import všech zón z CSV...")
+        self.btn_import_csv = QPushButton("Import teplot z CSV...")
         btn_add.clicked.connect(self._add_zone)
         btn_del.clicked.connect(self._del_zone)
         self.btn_import_csv.clicked.connect(self._import_zones_from_csv)
