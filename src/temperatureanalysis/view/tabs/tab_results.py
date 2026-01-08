@@ -423,7 +423,8 @@ class ResultsControlPanel(QWidget):
                 critical_time = None
             else:
                 flat_idx = np.argmax(mask)
-                critical_time, critical_thermocouple = np.unravel_index(flat_idx, mask.shape)
+                critical_time_index, critical_thermocouple = np.unravel_index(flat_idx, mask.shape)
+                critical_time = time_steps_min[critical_time_index]
 
             # Format statistics display
             stats_text = f"<b>Maximální teplota v betonu:</b><br>"
