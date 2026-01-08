@@ -14,7 +14,7 @@ import csv
 import logging
 import numpy as np
 import pyqtgraph as pg
-from typing import Optional
+from typing import Optional, List, Dict
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
@@ -239,6 +239,499 @@ class CsvImportDialog(QDialog):
             'time_unit_original': time_unit,
             'temp_unit_original': temp_unit
         }
+
+
+# ==============================================================================
+# CSV PARSING HELPERS
+# ==============================================================================
+
+def is_numeric_value(value: str) -> bool:
+    """Check if a string can be converted to float."""
+    try:
+        float(value.replace(',', '.'))
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+def parse_csv_headers(filepath: str) -> tuple[list[str], str, bool]:
+    """
+    Parse CSV file and detect headers, delimiter, and whether headers exist.
+
+    Args:
+        filepath: Path to CSV file
+
+    Returns:
+        (headers, delimiter, has_header) tuple
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            # Detect delimiter
+            first_line = f.readline()
+            delimiter = ';' if ';' in first_line else ','
+            f.seek(0)
+
+            reader = csv.reader(f, delimiter=delimiter)
+            rows = list(reader)
+
+            if not rows:
+                raise ValueError("CSV soubor je prázdný")
+
+            # Detect headers (first row has non-numeric values)
+            first_row = rows[0]
+            has_header = not all(is_numeric_value(cell) for cell in first_row if cell.strip())
+
+            if has_header:
+                headers = [cell.strip() for cell in first_row]
+            else:
+                # Generate default headers
+                num_cols = len(first_row)
+                headers = [f"Sloupec {i+1}" for i in range(num_cols)]
+
+            return headers, delimiter, has_header
+
+    except Exception as e:
+        logger.error(f"Failed to parse CSV headers: {e}")
+        raise
+
+
+def read_csv_column(filepath: str, column_index: int, time_column_index: int,
+                   time_unit: str, temp_unit: str, delimiter: str = ',') -> dict:
+    """
+    Read a single temperature column with its corresponding time values.
+
+    Args:
+        filepath: Path to CSV file
+        column_index: Index of temperature column to read
+        time_column_index: Index of time column
+        time_unit: 'seconds' or 'minutes'
+        temp_unit: 'celsius' or 'kelvin'
+        delimiter: CSV delimiter
+
+    Returns:
+        {'times': [...], 'temperatures': [...]} in internal units (seconds, Celsius)
+    """
+    with open(filepath, 'r', encoding='utf-8-sig') as f:
+        first_line = f.readline()
+        f.seek(0)
+        reader = csv.reader(f, delimiter=delimiter)
+        all_rows = list(reader)
+
+        # Skip header if present
+        has_header = not all(is_numeric_value(cell) for cell in all_rows[0] if cell.strip())
+        data_rows = all_rows[1:] if has_header else all_rows
+
+    times = []
+    temps = []
+
+    for row in data_rows:
+        if len(row) <= max(time_column_index, column_index):
+            continue
+        try:
+            time_val = float(row[time_column_index].replace(',', '.'))
+            temp_val = float(row[column_index].replace(',', '.'))
+
+            # Convert to internal units
+            # Time: Convert to Seconds
+            if time_unit == "minutes":
+                time_val = time_val * 60.0
+
+            # Temperature: Convert to Celsius
+            if temp_unit == "kelvin":
+                temp_val = temp_val - 273.15
+
+            times.append(time_val)
+            temps.append(temp_val)
+        except (ValueError, IndexError):
+            continue
+
+    return {
+        'times': times,
+        'temperatures': temps
+    }
+
+
+def extract_temp_columns(headers: list[str]) -> list[tuple[int, str]]:
+    """
+    Extract temperature column indices and names from CSV headers.
+    Looks for columns matching pattern: TEMP_01, TEMP_02, etc. (with or without quotes)
+
+    Args:
+        headers: List of CSV column headers
+
+    Returns:
+        List of (column_index, column_name) tuples for TEMP_XX columns
+    """
+    import re
+    temp_columns = []
+
+    # Pattern matches: TEMP_01, "TEMP_01", TEMP_105, etc.
+    pattern = re.compile(r'^"?TEMP_\d+"?$', re.IGNORECASE)
+
+    for idx, header in enumerate(headers):
+        if pattern.match(header.strip()):
+            # Clean header (remove quotes)
+            clean_name = header.strip().strip('"')
+            temp_columns.append((idx, clean_name))
+
+    return temp_columns
+
+
+# ==============================================================================
+# ZONAL CSV IMPORT DIALOG
+# ==============================================================================
+
+class ZonalCsvImportDialog(QDialog):
+    """
+    Dialog for importing CSV data into multiple zones simultaneously.
+    Allows mapping temperature columns to predefined zones.
+    """
+
+    def __init__(self, zones: List[ZoneConfig], parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.zones = zones  # Reference to existing zones
+        self.csv_filepath: Optional[str] = None
+        self.csv_headers: List[str] = []
+        self.csv_delimiter: str = ','
+        self.column_mappings: Dict[int, Optional[int]] = {}  # zone_idx -> column_idx
+        self.mapping_combos: List[QComboBox] = []  # Store combobox references
+
+        self.setWindowTitle("Import všech zón z CSV")
+        self.resize(900, 750)
+
+        self._init_ui()
+
+        # Open file dialog immediately (like material import)
+        QTimer.singleShot(0, self._on_browse_file)
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+
+        # === File Selection Section ===
+        file_group = QGroupBox("Výběr souboru")
+        file_layout = QVBoxLayout(file_group)
+
+        h_file = QHBoxLayout()
+        self.edit_filepath = QLineEdit()
+        self.edit_filepath.setReadOnly(True)
+        self.edit_filepath.setPlaceholderText("Vyberte CSV soubor...")
+        h_file.addWidget(self.edit_filepath)
+
+        btn_browse = QPushButton("Procházet...")
+        btn_browse.clicked.connect(self._on_browse_file)
+        h_file.addWidget(btn_browse)
+
+        file_layout.addLayout(h_file)
+
+        self.lbl_file_info = QLabel("Soubor nebyl vybrán")
+        self.lbl_file_info.setWordWrap(True)
+        file_layout.addWidget(self.lbl_file_info)
+
+        layout.addWidget(file_group)
+
+        # === Zone Mapping Section ===
+        mapping_group = QGroupBox("Mapování zón na sloupce CSV")
+        mapping_layout = QVBoxLayout(mapping_group)
+
+        self.table_mapping = QTableWidget()
+        self.table_mapping.setColumnCount(3)
+        self.table_mapping.setHorizontalHeaderLabels(["Zóna", "Rozsah Y [m]", "Sloupec CSV"])
+        self.table_mapping.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table_mapping.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table_mapping.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table_mapping.setSelectionMode(QTableWidget.NoSelection)
+        self.table_mapping.setEditTriggers(QTableWidget.NoEditTriggers)
+        mapping_layout.addWidget(self.table_mapping)
+
+        layout.addWidget(mapping_group)
+
+        # === Unit Selection Section ===
+        unit_group = QGroupBox("Jednotky")
+        unit_layout = QFormLayout(unit_group)
+
+        self.combo_time_unit = QComboBox()
+        self.combo_time_unit.addItem("Sekundy (s)", "seconds")
+        self.combo_time_unit.addItem("Minuty (min)", "minutes")
+        unit_layout.addRow("Jednotka času:", self.combo_time_unit)
+
+        self.combo_temp_unit = QComboBox()
+        self.combo_temp_unit.addItem("°C (Celsius)", "celsius")
+        self.combo_temp_unit.addItem("K (Kelvin)", "kelvin")
+        unit_layout.addRow("Jednotka teploty:", self.combo_temp_unit)
+
+        layout.addWidget(unit_group)
+
+        # === Data Preview Section ===
+        preview_group = QGroupBox("Náhled dat (prvních 10 řádků)")
+        preview_layout = QVBoxLayout(preview_group)
+
+        self.table_preview = QTableWidget()
+        self.table_preview.setMaximumHeight(200)
+        preview_layout.addWidget(self.table_preview)
+
+        layout.addWidget(preview_group)
+
+        # === Dialog Buttons ===
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.button(QDialogButtonBox.Ok).setText("Importovat")
+        button_box.button(QDialogButtonBox.Cancel).setText("Zrušit")
+        button_box.accepted.connect(self._on_accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.button_box = button_box
+        self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+
+        # Populate zone mapping table with existing zones
+        self._populate_mapping_table()
+
+    def _populate_mapping_table(self):
+        """Populate the zone-to-column mapping table with existing zones."""
+        self.table_mapping.setRowCount(len(self.zones))
+        self.mapping_combos.clear()
+
+        for i, zone in enumerate(self.zones):
+            # Zone name
+            zone_item = QTableWidgetItem(f"Zóna {i + 1}")
+            zone_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            self.table_mapping.setItem(i, 0, zone_item)
+
+            # Y range
+            y_range_text = f"{zone.y_min:.2f} - {zone.y_max:.2f} m"
+            y_range_item = QTableWidgetItem(y_range_text)
+            y_range_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            self.table_mapping.setItem(i, 1, y_range_item)
+
+            # Column selector combobox (initially empty)
+            combo = QComboBox()
+            combo.addItem("-- Přeskočit --", None)
+            combo.currentIndexChanged.connect(lambda idx, zone_idx=i: self._on_mapping_changed(zone_idx))
+            self.table_mapping.setCellWidget(i, 2, combo)
+            self.mapping_combos.append(combo)
+
+    def _on_browse_file(self):
+        """Handle file browser button click."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Vyberte CSV soubor",
+            "",
+            "CSV (*.csv);;Text (*.txt);;Všechny soubory (*)"
+        )
+        if not path:
+            # User cancelled - close the dialog
+            self.reject()
+            return
+
+        try:
+            self._on_file_selected(path)
+        except Exception as e:
+            logger.exception("Failed to load CSV file")
+            QMessageBox.critical(self, "Chyba", f"Chyba při načítání souboru:\n{str(e)}")
+            self.reject()
+
+    def _on_file_selected(self, filepath: str):
+        """Process selected CSV file."""
+        # Parse CSV headers
+        headers, delimiter, has_header = parse_csv_headers(filepath)
+
+        self.csv_filepath = filepath
+        self.csv_headers = headers
+        self.csv_delimiter = delimiter
+
+        # Update file info label
+        self.edit_filepath.setText(filepath)
+        self.lbl_file_info.setText(
+            f"<b>Načteno:</b> {len(headers)} sloupců"
+        )
+
+        # Update mapping comboboxes with ALL columns (not just TEMP_XX)
+        for combo in self.mapping_combos:
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("-- Přeskočit --", None)
+            # Add all columns with their headers or "Sloupec X" if no header
+            for col_idx, header in enumerate(headers):
+                # Use actual header or generate "Sloupec X" label
+                display_name = header if header else f"Sloupec {col_idx + 1}"
+                combo.addItem(display_name, col_idx)
+            combo.blockSignals(False)
+
+        # Enable OK button
+        self.button_box.button(QDialogButtonBox.Ok).setEnabled(True)
+
+        # Clear previous mappings
+        self.column_mappings.clear()
+
+        # Update preview (empty initially)
+        self._update_preview()
+
+    def _on_mapping_changed(self, zone_idx: int):
+        """Handle column mapping change for a zone."""
+        if zone_idx >= len(self.mapping_combos):
+            return
+
+        combo = self.mapping_combos[zone_idx]
+        col_idx = combo.currentData()
+
+        if col_idx is None:
+            # User selected "Skip"
+            if zone_idx in self.column_mappings:
+                del self.column_mappings[zone_idx]
+        else:
+            # User mapped this zone to a column
+            self.column_mappings[zone_idx] = col_idx
+
+        # Update preview
+        self._update_preview()
+
+    def _update_preview(self):
+        """Update data preview table based on current mappings."""
+        if not self.csv_filepath or not self.column_mappings:
+            self.table_preview.clear()
+            self.table_preview.setRowCount(0)
+            self.table_preview.setColumnCount(0)
+            return
+
+        try:
+            # Read first 10 rows of CSV
+            with open(self.csv_filepath, 'r', encoding='utf-8-sig') as f:
+                reader = csv.reader(f, delimiter=self.csv_delimiter)
+                all_rows = list(reader)
+
+            # Skip header row(s) - skip 2 rows if we have units row
+            has_header = not all(is_numeric_value(cell) for cell in all_rows[0] if cell.strip())
+            # Check if second row is also header (units)
+            skip_rows = 2 if has_header and len(all_rows) > 1 and not is_numeric_value(all_rows[1][0].strip()) else (1 if has_header else 0)
+            data_rows = all_rows[skip_rows:skip_rows + 10]  # First 10 data rows
+
+            # Setup preview table
+            mapped_zones = sorted(self.column_mappings.keys())
+            self.table_preview.setColumnCount(1 + len(mapped_zones))  # Time + mapped zones
+            headers = ["Čas [s]"] + [f"Zóna {z + 1}" for z in mapped_zones]
+            self.table_preview.setHorizontalHeaderLabels(headers)
+            self.table_preview.setRowCount(len(data_rows))
+
+            # Find time column (assume first column)
+            time_col_idx = 0
+
+            # Populate preview
+            for row_idx, row in enumerate(data_rows):
+                if len(row) <= time_col_idx:
+                    continue
+
+                # Time column
+                try:
+                    time_val = row[time_col_idx]
+                    self.table_preview.setItem(row_idx, 0, QTableWidgetItem(time_val))
+                except (ValueError, IndexError):
+                    pass
+
+                # Temperature columns
+                for col_idx, zone_idx in enumerate(mapped_zones, start=1):
+                    temp_col_idx = self.column_mappings[zone_idx]
+                    if len(row) > temp_col_idx:
+                        try:
+                            temp_val = row[temp_col_idx]
+                            self.table_preview.setItem(row_idx, col_idx, QTableWidgetItem(temp_val))
+                        except (ValueError, IndexError):
+                            pass
+
+            self.table_preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+        except Exception as e:
+            logger.exception("Failed to update preview")
+
+    def _validate_mappings(self) -> tuple[bool, str]:
+        """
+        Validate current mappings before accepting.
+
+        Returns:
+            (is_valid, error_message) tuple
+        """
+        if not self.csv_filepath:
+            return False, "Nebyl vybrán žádný CSV soubor."
+
+        if not self.column_mappings:
+            return False, "Musíte namapovat alespoň jednu zónu."
+
+        # Check that mapped columns have sufficient data
+        time_unit = self.combo_time_unit.currentData()
+        temp_unit = self.combo_temp_unit.currentData()
+
+        try:
+            for zone_idx, col_idx in self.column_mappings.items():
+                data = read_csv_column(
+                    self.csv_filepath,
+                    col_idx,
+                    0,  # Assume first column is time
+                    time_unit,
+                    temp_unit,
+                    self.csv_delimiter
+                )
+
+                if len(data['times']) < 2:
+                    # Get column name from headers
+                    col_name = self.csv_headers[col_idx] if col_idx < len(self.csv_headers) else f"Sloupec {col_idx + 1}"
+                    if not col_name:
+                        col_name = f"Sloupec {col_idx + 1}"
+                    return False, f"Sloupec {col_name} obsahuje méně než 2 platné body."
+
+        except Exception as e:
+            return False, f"Chyba při validaci dat: {str(e)}"
+
+        # Warn about unmapped zones (non-blocking)
+        unmapped_zones = [i + 1 for i in range(len(self.zones)) if i not in self.column_mappings]
+        if unmapped_zones:
+            zone_list = ", ".join(map(str, unmapped_zones))
+            QMessageBox.information(
+                self,
+                "Informace",
+                f"Zóny {zone_list} nebyly namapovány.\nJejich data zůstanou nezměněna."
+            )
+
+        return True, ""
+
+    def _on_accept(self):
+        """Handle OK button click."""
+        is_valid, error_msg = self._validate_mappings()
+
+        if not is_valid:
+            QMessageBox.warning(self, "Chyba", error_msg)
+            return
+
+        self.accept()
+
+    def get_imported_data(self) -> Dict[int, dict]:
+        """
+        Extract imported data for all mapped zones.
+
+        Returns:
+            Dict mapping zone_idx to {'times': [...], 'temperatures': [...]}
+        """
+        if not self.csv_filepath or not self.column_mappings:
+            return {}
+
+        time_unit = self.combo_time_unit.currentData()
+        temp_unit = self.combo_temp_unit.currentData()
+
+        imported_data = {}
+
+        for zone_idx, col_idx in self.column_mappings.items():
+            try:
+                data = read_csv_column(
+                    self.csv_filepath,
+                    col_idx,
+                    0,  # Assume first column is time
+                    time_unit,
+                    temp_unit,
+                    self.csv_delimiter
+                )
+                imported_data[zone_idx] = data
+            except Exception as e:
+                logger.exception(f"Failed to read column {col_idx} for zone {zone_idx}")
+                continue
+
+        return imported_data
 
 
 # ==============================================================================
@@ -572,10 +1065,13 @@ class ZonalCurveEditor(QWidget):
         h_tools = QHBoxLayout()
         btn_add = QPushButton("Přidat zónu")
         btn_del = QPushButton("Smazat zónu")
+        self.btn_import_csv = QPushButton("Import všech zón z CSV...")
         btn_add.clicked.connect(self._add_zone)
         btn_del.clicked.connect(self._del_zone)
+        self.btn_import_csv.clicked.connect(self._import_zones_from_csv)
         h_tools.addWidget(btn_add)
         h_tools.addWidget(btn_del)
+        h_tools.addWidget(self.btn_import_csv)
         h_tools.addStretch()
         l_zones.addLayout(h_tools)
 
@@ -620,6 +1116,8 @@ class ZonalCurveEditor(QWidget):
         self._load_zones_table()
         # Reset selection details
         self.grp_zone_detail.setEnabled(False)
+        # Enable/disable import button based on whether zones exist
+        self.btn_import_csv.setEnabled(len(self.current_config.zones) > 0)
         # Notify initial view
         self.selectionChanged.emit()
 
@@ -832,6 +1330,59 @@ class ZonalCurveEditor(QWidget):
         self._load_zones_table()
         self.dataChanged.emit()
         self.selectionChanged.emit()
+
+    def _import_zones_from_csv(self):
+        """
+        Import time-temperature data for all zones from a multi-column CSV file.
+        User selects which TEMP_XX column maps to which zone.
+        """
+        if not self.current_config or not self.current_config.zones:
+            QMessageBox.warning(
+                self,
+                "Chyba",
+                "Před importem dat musíte nejprve vytvořit zóny."
+            )
+            return
+
+        # Show import dialog
+        dialog = ZonalCsvImportDialog(self.current_config.zones, parent=self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        # Get imported data
+        imported_data = dialog.get_imported_data()
+
+        if not imported_data:
+            QMessageBox.warning(self, "Chyba", "Nebyly importována žádná data.")
+            return
+
+        # Apply data to zones
+        zones_updated = 0
+        for zone_idx, data in imported_data.items():
+            if zone_idx < len(self.current_config.zones):
+                zone = self.current_config.zones[zone_idx]
+                # Update zone's curve (already in correct units from dialog)
+                zone.curve.times = data['times']
+                zone.curve.temperatures = data['temperatures']
+                zones_updated += 1
+
+        # Refresh UI
+        if self.table.currentRow() >= 0:
+            # Reload currently selected zone's curve editor
+            self._on_zone_selected()
+
+        # Emit change signals
+        self.dataChanged.emit()
+        self.selectionChanged.emit()
+
+        # Show success message
+        total_points = len(imported_data[list(imported_data.keys())[0]]['times']) if imported_data else 0
+        QMessageBox.information(
+            self,
+            "Import úspěšný",
+            f"Data úspěšně importována pro {zones_updated} {'zónu' if zones_updated == 1 else 'zóny' if zones_updated < 5 else 'zón'}.\n"
+            f"Celkový počet bodů: {total_points}"
+        )
 
 
 # ==============================================================================
