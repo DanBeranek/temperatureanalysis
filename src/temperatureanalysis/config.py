@@ -26,13 +26,16 @@ def get_resource_path(relative_path: str) -> str:
     if hasattr(sys, '_MEIPASS'):
         # PyInstaller temp folder
         base_path: str = getattr(sys, '_MEIPASS')
-        return os.path.join(base_path, relative_path)
+        # In the spec file, we mapped:
+        # 'src/temperatureanalysis/assets' -> 'temperatureanalysis/assets'
+        # So we need to prepend the package name if the relative_path is just 'assets'
+        return os.path.join(base_path, 'temperatureanalysis', relative_path)
 
-    # Development mode: resolve relative to this file
-    # config.py is in src/temperatureanalysis/
-    current_file_path: Path = Path(__file__)
-    project_root: Path = current_file_path.parent.parent.parent
-    return os.path.join(str(project_root), relative_path)
+        # Development mode: resolve relative to THIS file
+        # config.py is in src/temperatureanalysis/
+        # Assets are likely in src/temperatureanalysis/assets
+    current_dir: Path = Path(__file__).parent
+    return os.path.join(str(current_dir), relative_path)
 
 
 # Global Constants

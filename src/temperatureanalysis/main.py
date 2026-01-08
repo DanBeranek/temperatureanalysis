@@ -25,7 +25,7 @@ from temperatureanalysis.view.main_window import MainWindow
 def main() -> None:
     # 1. Setup Logging (Console + Optional File)
     # Use logging.DEBUG to see everything during development
-    setup_logging(level=logging.DEBUG, log_file="app_debug.log")
+    # setup_logging(level=logging.DEBUG, log_file="app_debug.log")
 
     # 2. Create the Qt Application
     app = QApplication(sys.argv)
