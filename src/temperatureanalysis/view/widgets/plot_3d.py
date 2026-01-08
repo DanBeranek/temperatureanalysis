@@ -83,6 +83,9 @@ class PyVistaWidget(QWidget):
         self._cached_mesh: Optional[pv.DataSet] = None
         self._cached_mesh_path: Optional[str] = None
 
+        # Cache thermocouple mesh path to avoid recreating actors
+        self._cached_thermocouple_mesh_path: Optional[str] = None
+
         # --- Visibility state ---
         self._visible_geometry: bool = True
         self._visible_mesh: bool = True
@@ -112,7 +115,8 @@ class PyVistaWidget(QWidget):
         draw_isotherm: bool = True,
         v_min: Optional[float] = None,
         v_max: Optional[float] = None,
-        levels: Optional[List[float]] = None
+        levels: Optional[List[float]] = None,
+        colormap: str = "fire"
     ) -> None:
         """
         Refreshes all layers in the 3D preview:
@@ -136,7 +140,8 @@ class PyVistaWidget(QWidget):
                 draw_isotherm,
                 v_min,
                 v_max,
-                levels
+                levels,
+                colormap
             )
             # Auto-enable results visibility if new results are provided
             if not self.btn_vis_res.isChecked():
@@ -386,7 +391,8 @@ class PyVistaWidget(QWidget):
         draw_isotherm: bool = True,
         v_min: Optional[float] = None,
         v_max: Optional[float] = None,
-        levels: Optional[List[float]] = None
+        levels: Optional[List[float]] = None,
+        colormap: str = "fire"
     ) -> None:
         """Updates or creates the results heatmap and isolines."""
         celsius_data = scalars - 273.15  # Convert from Kelvin to Celsius
@@ -398,14 +404,15 @@ class PyVistaWidget(QWidget):
         if v_max is None:
             v_max = np.nanmax(celsius_data)
 
-        self._update_heatmap(mesh, v_min, v_max)
+        self._update_heatmap(mesh, v_min, v_max, colormap)
         self._update_isolines(mesh, v_min, v_max, draw_isotherm, levels)
 
     def _update_heatmap(
         self,
         mesh: pv.DataSet,
         v_min: float,
-        v_max: float
+        v_max: float,
+        colormap: str = "fire"
     ) -> None:
         """
         Creates or updates the heatmap actor.
@@ -415,8 +422,7 @@ class PyVistaWidget(QWidget):
             self._result_heatmap_actor = self.plotter.add_mesh(
                 mesh,
                 scalars="temperature",
-                # cmap="jet",
-                cmap="fire",
+                cmap=colormap,
                 lighting=False,
                 clim=[v_min, v_max],
                 scalar_bar_args={
@@ -430,7 +436,8 @@ class PyVistaWidget(QWidget):
                 interpolate_before_map=True,
             )
         else:
-            # Update existing actor
+            # Update existing actor - update colormap and range
+            self._result_heatmap_actor.mapper.lookup_table.cmap = colormap
             self._result_heatmap_actor.mapper.scalar_range = (v_min, v_max)
             self._result_heatmap_actor.mapper.scalar_visibility = True
             # Visibility handled in _apply_visibility()
@@ -557,10 +564,15 @@ class PyVistaWidget(QWidget):
 
     def _update_thermocouple_layer(self, mesh_path: str) -> None:
         """Visualize thermocouple points with labels."""
+        # Check if thermocouples already exist for this mesh path
+        if self._cached_thermocouple_mesh_path == mesh_path and self._thermocouple_actors:
+            return  # Already created, skip update
+
         # Clear previous thermocouples
         self._clear_thermocouple_layer()
 
         if not mesh_path or not os.path.exists(mesh_path):
+            self._cached_thermocouple_mesh_path = None
             return
 
         # Extract thermocouple positions
@@ -607,6 +619,9 @@ class PyVistaWidget(QWidget):
         )
         self._thermocouple_actors.append(label_actor)
 
+        # Update cache to avoid recreating on next frame
+        self._cached_thermocouple_mesh_path = mesh_path
+
     def _clear_thermocouple_layer(self):
         """Removes thermocouple actors."""
         for actor in self._thermocouple_actors:
@@ -615,6 +630,7 @@ class PyVistaWidget(QWidget):
             except:
                 pass
         self._thermocouple_actors.clear()
+        self._cached_thermocouple_mesh_path = None
 
     def _apply_visibility(self):
         """Applies visibility states to all layers."""

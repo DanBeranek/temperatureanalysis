@@ -26,7 +26,7 @@ class ThermalConductivityBoundary(StrEnum):
 
 class MaterialType(StrEnum):
     GENERIC = "Vlastní"
-    CONCRETE = "Beton (ČSN EN 1992-1-2)"
+    CONCRETE = "Beton (ČSN EN 1992-1-2 ed. 2)"
 
 
 class TemperatureDependentProperty(StrEnum):
@@ -43,7 +43,7 @@ class PropertyMetadata:
 PROPERTY_METADATA: Dict[TemperatureDependentProperty, PropertyMetadata] = {
     TemperatureDependentProperty.CONDUCTIVITY: PropertyMetadata(label="Tepelná vodivost", unit="W/(m·K)"),
     TemperatureDependentProperty.SPECIFIC_HEAT_CAPACITY: PropertyMetadata(label="Měrná tepelná kapacita", unit="J/(kg·K)"),
-    TemperatureDependentProperty.DENSITY: PropertyMetadata(label="Hustota", unit="kg/m³"),
+    TemperatureDependentProperty.DENSITY: PropertyMetadata(label="Objemová hmotnost", unit="kg/m³"),
 }
 
 @dataclass
@@ -395,8 +395,8 @@ class MaterialLibrary:
     def _init_defaults(self) -> None:
         # Concrete
         concrete = ConcreteMaterial(
-            name="Beton (ČSN EN 1992-1-2)",
-            description="Standardní beton podle ČSN EN 1992-1-2",
+            name="Beton (ČSN EN 1992-1-2 ed.2)",
+            description="Standardní beton podle ČSN EN 1992-1-2 ed.2",
             initial_density=ConcreteConfig.initial_density,
             initial_moisture_content=ConcreteConfig.initial_moisture_content,
             conductivity_boundary=ConcreteConfig.conductivity_boundary

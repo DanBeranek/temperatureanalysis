@@ -47,7 +47,7 @@ class CsvImportDialog(QDialog):
         self.csv_data = []
         self.headers = []
 
-        self.setWindowTitle("Importovat CSV - Nastavení")
+        self.setWindowTitle("Import z CSV")
         self.resize(800, 600)
 
         self._load_csv_preview()
@@ -96,9 +96,8 @@ class CsvImportDialog(QDialog):
     def _init_ui(self):
         layout = QVBoxLayout(self)
 
-        # Info label
-        info = QLabel("Vyberte sloupce pro jednotlivé vlastnosti:")
-        layout.addWidget(info)
+
+
 
         # Name field (only for full material import)
         if self.mode == "full":
@@ -141,7 +140,7 @@ class CsvImportDialog(QDialog):
             self.combo_dens.addItem("-- Nevybráno --", None)
             for i, header in enumerate(self.headers):
                 self.combo_dens.addItem(f"{header}", i)
-            map_layout.addRow("Hustota:", self.combo_dens)
+            map_layout.addRow("Objemová hmotnost:", self.combo_dens)
         else:
             # Single property import
             self.combo_value = QComboBox()
@@ -382,7 +381,7 @@ class GenericMaterialEditor(QWidget):
         h_tools = QHBoxLayout()
         btn_add_row = QPushButton("+ Bod")
         btn_del_row = QPushButton("- Bod")
-        btn_load_csv = QPushButton("Načíst křivku...")
+        btn_load_csv = QPushButton("Načíst křivku z CSV...")
 
         h_tools.addWidget(btn_add_row)
         h_tools.addWidget(btn_del_row)
@@ -647,7 +646,7 @@ class ConcreteMaterialEditor(QWidget):
         self.spin_dens.setRange(500, 5000)
         self.spin_dens.setSuffix(" kg/m³")
         self.spin_dens.valueChanged.connect(self._on_value_changed)
-        layout.addRow("Počáteční hustota:", self.spin_dens)
+        layout.addRow("Počáteční objemová hmotnost:", self.spin_dens)
 
         self.spin_moist = QDoubleSpinBox()
         self.spin_moist.setRange(0, 100)
@@ -656,12 +655,12 @@ class ConcreteMaterialEditor(QWidget):
         layout.addRow("Vlhkost:", self.spin_moist)
 
         self.combo_bound = QComboBox()
-        self.combo_bound.addItem("Horní mez (Upper)", ThermalConductivityBoundary.UPPER)
-        self.combo_bound.addItem("Dolní mez (Lower)", ThermalConductivityBoundary.LOWER)
+        self.combo_bound.addItem("Horní mez", ThermalConductivityBoundary.UPPER)
+        self.combo_bound.addItem("Dolní mez", ThermalConductivityBoundary.LOWER)
         self.combo_bound.currentIndexChanged.connect(self._on_value_changed)
-        layout.addRow("Mez vodivosti:", self.combo_bound)
+        layout.addRow("Tepelná vodivost:", self.combo_bound)
 
-        layout.addRow(QLabel("\nPoznámka: Teplotní závislosti jsou vypočteny automaticky\ndle norem Eurokód 2."))
+        layout.addRow(QLabel("\nTeplotní charakteristiky jsou vypočteny automaticky\ndle normy ČSN EN 1992-1-2 ed.2."))
 
         # Add stretch to push form to top
         v_spacer = QWidget()
@@ -700,7 +699,7 @@ class ConcreteMaterialEditor(QWidget):
 class MaterialsDialog(QDialog):
     def __init__(self, project_state, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Knihovna Materiálů")
+        self.setWindowTitle("Knihovna materiálů")
         self.resize(1200, 750)
 
         self.project = project_state
@@ -740,30 +739,30 @@ class MaterialsDialog(QDialog):
         self.list_widget.currentItemChanged.connect(self.on_selection_changed)
         left_layout.addWidget(self.list_widget)
 
-        btn_add = QPushButton("Nový Materiál")
+        btn_add = QPushButton("Nový")
         btn_add.clicked.connect(self.on_add_clicked)
         left_layout.addWidget(btn_add)
 
-        btn_copy = QPushButton("Kopírovat Materiál")
+        btn_copy = QPushButton("Kopírovat")
         btn_copy.clicked.connect(self.on_copy_clicked)
         btn_copy.setEnabled(False)  # Initially disabled
         left_layout.addWidget(btn_copy)
         self.btn_copy = btn_copy
 
-        btn_delete = QPushButton("Smazat Materiál")
+        btn_delete = QPushButton("Smazat")
         btn_delete.clicked.connect(self.on_delete_clicked)
         btn_delete.setEnabled(False)  # Initially disabled
         left_layout.addWidget(btn_delete)
         self.btn_delete = btn_delete
 
-        btn_import = QPushButton("Importovat nový z CSV...")
+        btn_import = QPushButton("Importovat z CSV...")
         btn_import.clicked.connect(self.on_import_clicked)
         left_layout.addWidget(btn_import)
 
         h_content.addLayout(left_layout, stretch=1)
 
         # --- CENTER: Editors (Swappable) ---
-        self.center_group = QGroupBox("Vlastnosti Materiálu")
+        self.center_group = QGroupBox("Vlastnosti materiálu")
         self.center_group.setEnabled(False)
         center_layout = QVBoxLayout(self.center_group)
 
@@ -778,7 +777,7 @@ class MaterialsDialog(QDialog):
         form.addRow("Popis:", self.edit_desc)
 
         self.combo_type = QComboBox()
-        self.combo_type.addItem("Vlastní", MaterialType.GENERIC)
+        self.combo_type.addItem("Uživatelský", MaterialType.GENERIC)
         self.combo_type.addItem("Beton (Eurokód 2)", MaterialType.CONCRETE)
         self.combo_type.currentIndexChanged.connect(self.on_type_changed)
         form.addRow("Typ materiálu:", self.combo_type)
@@ -964,7 +963,7 @@ class MaterialsDialog(QDialog):
         self.current_material.description = self.edit_desc.text()
 
     def on_add_clicked(self):
-        base_name = "Nový Materiál"
+        base_name = "Nový materiál"
         name = base_name
         cnt = 1
         while self.working_library.get_material(name):

@@ -2,7 +2,7 @@ import datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QSlider, QHBoxLayout, QGroupBox, QMessageBox, QProgressBar, QFormLayout,
-    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog, QCheckBox
+    QDoubleSpinBox, QStyle, QSpinBox, QFileDialog, QCheckBox, QComboBox
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 import logging
@@ -16,9 +16,18 @@ from temperatureanalysis.view.dialogs.thermocouple_plot_dialog import Thermocoup
 
 logger = logging.getLogger(__name__)
 
+COLORMAPS = [
+    ("Rainbow", "rainbow4"),
+    ("Fire", "fire"),
+    ("Coolwarm", "coolwarm"),
+    ("Inferno", "inferno"),
+    ("Viridis", "viridis"),
+]
+# Available colormaps for temperature visualization
+
 class ResultsControlPanel(QWidget):
-    # Signal: (mesh_path, temperature_array, v_min_override, reset_camera)
-    update_view_requested = Signal(str, object, object, bool)
+    # Signal: (mesh_path, temperature_array, v_min_override, reset_camera, colormap)
+    update_view_requested = Signal(str, object, object, bool, str)
     results_generated = Signal()
 
     def __init__(self, project_state: ProjectState) -> None:
@@ -78,7 +87,7 @@ class ResultsControlPanel(QWidget):
         l_calc.addWidget(self.progress)
 
         # Export Results Button
-        self.btn_export = QPushButton("Exportovat do ParaView...")
+        self.btn_export = QPushButton("Exportovat výsledky...")
         self.btn_export.clicked.connect(self.on_export_clicked)
         self.btn_export.setEnabled(False)  # Disabled until results exist
         l_calc.addWidget(self.btn_export)
@@ -112,7 +121,7 @@ class ResultsControlPanel(QWidget):
 
         # Colorbar Min Value Control
         hbox_min = QHBoxLayout()
-        hbox_min.addWidget(QLabel("Min. Teplota:"))
+        hbox_min.addWidget(QLabel("Min. teplota:"))
 
         self.chk_auto_min = QCheckBox("Auto")
         self.chk_auto_min.setChecked(True)
@@ -128,6 +137,18 @@ class ResultsControlPanel(QWidget):
         hbox_min.addWidget(self.spin_vmin)
 
         l_vis.addLayout(hbox_min)
+
+        # Colormap Selection
+        hbox_cmap = QHBoxLayout()
+        hbox_cmap.addWidget(QLabel("Barevná škála:"))
+        self.combo_colormap = QComboBox()
+        for label, value in COLORMAPS:
+            self.combo_colormap.addItem(label, value)
+        self.combo_colormap.setCurrentIndex(0)  # Default to "Fire"
+        self.combo_colormap.currentIndexChanged.connect(self.on_vis_settings_changed)
+        hbox_cmap.addWidget(self.combo_colormap)
+        hbox_cmap.addStretch()
+        l_vis.addLayout(hbox_cmap)
 
         # FPS Control
         hbox_fps = QHBoxLayout()
@@ -147,7 +168,7 @@ class ResultsControlPanel(QWidget):
         layout.addWidget(grp_vis)
 
         # --- Rebar Analysis ---
-        grp_rebar = QGroupBox("Analýza Výztuže")
+        grp_rebar = QGroupBox("Analýza maximálních teplot")
         l_rebar = QVBoxLayout(grp_rebar)
 
         self.lbl_stats = QLabel("Statistiky budou dostupné po dokončení výpočtu.")
@@ -156,7 +177,7 @@ class ResultsControlPanel(QWidget):
         self.lbl_stats.setStyleSheet("QLabel { padding: 5px; background-color: rgba(0,0,0,10); border-radius: 3px; }")
         l_rebar.addWidget(self.lbl_stats)
 
-        self.btn_plot_rebar = QPushButton("Vykreslit Teploty Výztuže")
+        self.btn_plot_rebar = QPushButton("Vykreslit průběh teplot v termočláncích")
         self.btn_plot_rebar.clicked.connect(self.on_plot_rebar_clicked)
         self.btn_plot_rebar.setEnabled(False)
         l_rebar.addWidget(self.btn_plot_rebar)
@@ -270,7 +291,7 @@ class ResultsControlPanel(QWidget):
     def on_error(self, msg: str) -> None:
         self.btn_run.setEnabled(True)
         self.progress.setVisible(False)
-        QMessageBox.critical(self, "Chyba Výpočtu", msg)
+        QMessageBox.critical(self, "Chyba výpočtu", msg)
 
     def on_export_clicked(self) -> None:
         """Export result sequence."""
@@ -287,7 +308,7 @@ class ResultsControlPanel(QWidget):
                 QMessageBox.information(self, "Export",
                                         f"Data uložena do:\n{output_path}\n\nOtevřete soubor .pvd v ParaView.")
             except Exception as e:
-                QMessageBox.critical(self, "Chyba Exportu", str(e))
+                QMessageBox.critical(self, "Chyba exportu", str(e))
 
     def on_slider_changed(self, index: int) -> None:
         if not self.project.results or not self.project.mesh_path: return
@@ -302,8 +323,11 @@ class ResultsControlPanel(QWidget):
         if not self.chk_auto_min.isChecked():
             v_min_override = self.spin_vmin.value()
 
+        # Get selected colormap
+        colormap = self.combo_colormap.currentData()
+
         # Emit signal to MainWindow
-        self.update_view_requested.emit(self.project.mesh_path, temp_data, v_min_override, False)
+        self.update_view_requested.emit(self.project.mesh_path, temp_data, v_min_override, False, colormap)
 
     # --- ANIMATION LOGIC ---
 
@@ -353,7 +377,7 @@ class ResultsControlPanel(QWidget):
             model = prepare_simulation_model(self.project)
 
             if not model.mesh.thermocouples:
-                self.lbl_stats.setText("<b>Informace:</b> V síti nebyly nalezeny žádné termočlánky (výztuž).")
+                self.lbl_stats.setText("<b>Informace:</b> V síti nebyly nalezeny žádné termočlánky.")
                 self.btn_plot_rebar.setEnabled(False)
                 return
 
@@ -402,17 +426,15 @@ class ResultsControlPanel(QWidget):
                 critical_time, critical_thermocouple = np.unravel_index(flat_idx, mask.shape)
 
             # Format statistics display
-            stats_text = "<b>Statistiky Teplotní Analýzy:</b><br><br>"
-
-            stats_text += f"<b>Maximální Teplota Betonu:</b><br>"
+            stats_text = f"<b>Maximální teplota v betonu:</b><br>"
             stats_text += f"&nbsp;&nbsp;• Teplota: {max_concrete_temp:.1f} °C<br>"
             stats_text += f"&nbsp;&nbsp;• Čas: {time_max_concrete:.1f} min<br><br>"
 
-            stats_text += f"<b>Maximální Teplota Výztuže:</b><br>"
+            stats_text += f"<b>Maximální teplota ve výztuži:</b><br>"
             stats_text += f"&nbsp;&nbsp;• Teplota: {max_rebar_temp:.1f} °C<br>"
             stats_text += f"&nbsp;&nbsp;• Čas: {time_max_rebar:.1f} min<br><br>"
 
-            stats_text += f"<b>Kritická Teplota: {T_crit:.0f} °C</b><br>"
+            stats_text += f"<b>Kritická teplota: {T_crit:.0f} °C</b><br>"
             if critical_time is not None:
                 stats_text += f"&nbsp;&nbsp;• ⚠ Překročena v čase: {critical_time:.1f} min<br>"
             else:

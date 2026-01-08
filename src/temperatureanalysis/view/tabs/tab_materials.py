@@ -25,10 +25,10 @@ class MaterialsControlPanel(QWidget):
         layout = QVBoxLayout(self)
 
         # 1. Management
-        manage_group = QGroupBox("Definice Materiálů")
+        manage_group = QGroupBox("Definice materiálů")
         manage_layout = QVBoxLayout(manage_group)
 
-        btn_manage = QPushButton("Spravovat Knihovnu Materiálů...")
+        btn_manage = QPushButton("Spravovat knihovnu materiálů...")
         btn_manage.setFixedHeight(40)
         btn_manage.clicked.connect(self.open_manager_modal)
         manage_layout.addWidget(btn_manage)
@@ -36,7 +36,7 @@ class MaterialsControlPanel(QWidget):
         layout.addWidget(manage_group)
 
         # 2. Assignment Section
-        assign_group = QGroupBox("Materiál Konstrukce")
+        assign_group = QGroupBox("Materiál ostění")
         assign_layout = QVBoxLayout(assign_group)
 
         assign_layout.addWidget(QLabel("Vyberte materiál:"))

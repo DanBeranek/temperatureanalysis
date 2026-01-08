@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 class FireCurveType(StrEnum):
     STANDARD = "Standardní (Normová)"
-    TABULATED = "Vlastní (Tabulka)"
-    ZONAL = "Zónová (Dle výšky)"
+    TABULATED = "Vlastní (jednozónová)"
+    ZONAL = "Vlastní (vícezónová)"
 
 class StandardCurveType(StrEnum):
     ISO834 = "ISO 834, Cellulosic"

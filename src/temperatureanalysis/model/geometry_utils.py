@@ -177,3 +177,33 @@ def arc_points(
     y = cy + r * np.sin(angles)
 
     return np.column_stack((x, y))
+
+def line_intersection(p1: Point, p2: Point, p3: Point, p4: Point, eps=1e-12):
+    """
+    Intersection of two infinite 2D lines:
+      L1 through p1->p2, L2 through p3->p4.
+    Returns (x, y) if they intersect in a single point, otherwise None (parallel / coincident).
+
+    Points are (x, y).
+    """
+    x1, y1 = p1.x, p1.y
+    x2, y2 = p2.x, p2.y
+    x3, y3 = p3.x, p3.y
+    x4, y4 = p4.x, p4.y
+
+    # Solve using cross products
+    r = (x2 - x1, y2 - y1)
+    s = (x4 - x3, y4 - y3)
+
+    def cross(a, b):
+        return a[0]*b[1] - a[1]*b[0]
+
+    rxs = cross(r, s)
+    q_p = (x3 - x1, y3 - y1)
+
+    if abs(rxs) < eps:
+        # parallel (including possibly collinear)
+        return None
+
+    t = cross(q_p, s) / rxs  # parameter on L1
+    return x1 + t * r[0], y1 + t * r[1]

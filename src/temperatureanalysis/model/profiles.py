@@ -4,7 +4,7 @@ from enum import StrEnum
 from dataclasses import dataclass, field
 
 from temperatureanalysis.model.geometry_primitives import Point, Line, Arc, BoundaryLoop, GeometricEntity, Circle, Vector
-from temperatureanalysis.model.geometry_utils import line_circle_intersection, deg2rad
+from temperatureanalysis.model.geometry_utils import line_circle_intersection, deg2rad, line_intersection
 
 
 # ------------------------------------------------------------------------------
@@ -58,7 +58,9 @@ class TunnelOutline:
         self,
         offset: float = 0.0,
         num_points: Optional[int] = None,
-        assume_symmetric: bool = False
+        assume_symmetric: bool = False,
+        start_point_for_intersection: Optional[Point] = None,
+        intersection_vector: Optional[Vector] = None
     ) -> List[GeometricEntity]:
         """
         Generate a list of Arcs/Lines for this specific boundary (CCW direction).
@@ -69,31 +71,41 @@ class TunnelOutline:
                 return self._generate_arc(
                     offset=offset,
                     num_points=num_points,
-                    assume_symmetric=assume_symmetric
+                    assume_symmetric=assume_symmetric,
+                    start_point_for_intersection=start_point_for_intersection,
+                    intersection_vector=intersection_vector
                 )
             case OutlineShape.THREE_CENTRE:
                 return self._generate_three_centre(
                     offset=offset,
                     num_points=num_points,
-                    assume_symmetric=assume_symmetric
+                    assume_symmetric=assume_symmetric,
+                    start_point_for_intersection=start_point_for_intersection,
+                    intersection_vector=intersection_vector
                 )
             case OutlineShape.FIVE_CENTRE:
                 return self._generate_five_centre(
                     offset=offset,
                     num_points=num_points,
-                    assume_symmetric=assume_symmetric
+                    assume_symmetric=assume_symmetric,
+                    start_point_for_intersection=start_point_for_intersection,
+                    intersection_vector=intersection_vector
                 )
             case OutlineShape.BOX:
                 return self._generate_box(
                     offset=offset,
                     num_points=num_points,
-                    assume_symmetric=assume_symmetric
+                    assume_symmetric=assume_symmetric,
+                    # start_point_for_intersection=start_point_for_intersection,
+                    # intersection_vector=intersection_vector
                 )
             case OutlineShape.D_SEGMENTAL:
                 return self._generate_d_segments(
                     offset=offset,
                     num_points=num_points,
-                    assume_symmetric=assume_symmetric
+                    assume_symmetric=assume_symmetric,
+                    start_point_for_intersection=start_point_for_intersection,
+                    intersection_vector=intersection_vector
                 )
             case _:
                 return []
@@ -115,22 +127,27 @@ class TunnelOutline:
         offset: float,
         assume_symmetric: bool,
         num_points: Optional[int] = None,
+        start_point_for_intersection: Optional[Point] = None,
+        intersection_vector: Optional[Vector] = None
     ) -> List[Arc]:
         r = self.dimensions[0] + offset
         p_center = Point(self.center_first[0], self.center_first[1])
         circle = Circle(center=p_center, radius=r)
-        floor_point = Point(0.0, self.floor_height)
+
+        if not start_point_for_intersection:
+            start_point_for_intersection = Point(0.0, self.floor_height)
+            intersection_vector = Point(r, self.floor_height) - start_point_for_intersection
 
         p_start = line_circle_intersection(
-            point=floor_point,
-            vector=Point(r, self.floor_height) - floor_point,
+            point=start_point_for_intersection,
+            vector=intersection_vector,
             circle=circle,
             as_segment=True
         )[0]
 
         p_end = line_circle_intersection(
-            point=floor_point,
-            vector=Point(-r, self.floor_height) - floor_point,
+            point=start_point_for_intersection.mirror(),
+            vector=intersection_vector.mirror(),
             circle=circle,
             as_segment=True
         )[0]
@@ -150,8 +167,12 @@ class TunnelOutline:
         offset: float,
         assume_symmetric: bool,
         num_points: Optional[int] = None,
+        start_point_for_intersection: Optional[Point] = None,
+        intersection_vector: Optional[Vector] = None
     ) -> List[Arc]:
-        floor_point = Point(0.0, self.floor_height)
+        if not start_point_for_intersection:
+            start_point_for_intersection = Point(0.0, self.floor_height)
+            intersection_vector = Point(1000, self.floor_height) - start_point_for_intersection
 
         r1 = self.dimensions[0] + offset
         pc1 = Point(self.center_first[0], self.center_first[1])
@@ -170,8 +191,8 @@ class TunnelOutline:
         circle2 = Circle(pc2, r2)
         circle3 = Circle(pc3, r2)
 
-        p1 = line_circle_intersection(floor_point, Point(1000, self.floor_height) - floor_point, circle2, as_segment=True)[0]
-        p5 = line_circle_intersection(floor_point, Point(-1000, self.floor_height) - floor_point, circle3, as_segment=True)[0]
+        p1 = line_circle_intersection(start_point_for_intersection, intersection_vector, circle2, as_segment=True)[0]
+        p5 = line_circle_intersection(start_point_for_intersection.mirror(), intersection_vector.mirror(), circle3, as_segment=True)[0]
 
         # Distribute points proportionally to the arc lengths
         arc_1 = Arc(p1, pc2, p2)
@@ -198,8 +219,12 @@ class TunnelOutline:
         offset: float,
         assume_symmetric: bool,
         num_points: Optional[int] = None,
+        start_point_for_intersection: Optional[Point] = None,
+        intersection_vector: Optional[Vector] = None
     ) -> List[Arc]:
-        floor_point = Point(0.0, self.floor_height)
+        if not start_point_for_intersection:
+            start_point_for_intersection = Point(0.0, self.floor_height)
+            intersection_vector = Point(1000, self.floor_height) - start_point_for_intersection
 
         r1 = self.dimensions[0] + offset
         pc1 = Point(self.center_first[0], self.center_first[1])
@@ -223,8 +248,8 @@ class TunnelOutline:
         circle2 = Circle(p6, r3)
         circle3 = Circle(p2, r3)
 
-        p1 = line_circle_intersection(floor_point, Point(1000, self.floor_height) - floor_point, circle2, as_segment=True)[0]
-        p7 = line_circle_intersection(floor_point, Point(-1000, self.floor_height) - floor_point, circle3, as_segment=True)[0]
+        p1 = line_circle_intersection(start_point_for_intersection, intersection_vector, circle2, as_segment=True)[0]
+        p7 = line_circle_intersection(start_point_for_intersection.mirror(), intersection_vector.mirror(), circle3, as_segment=True)[0]
 
         # Distribute points proportionally to the arc lengths
         arc_1 = Arc(p1, p6, p2)
@@ -291,19 +316,26 @@ class TunnelOutline:
         offset: float,
         assume_symmetric: bool,
         num_points: Optional[int] = None,
+        start_point_for_intersection: Optional[Point] = None,
+        intersection_vector: Optional[Vector] = None
     ) -> List[GeometricEntity]:
         y = self.floor_height
-
         r1 = self.dimensions[0] + offset
-
         cx, cy = self.center_first
-
         pc = Point(cx, cy)
-        p1 = Point(r1, y)
+
         p2 = Point(r1, cy)
-        p3 = Point(0.0, cy+r1)
+        p3 = Point(0.0, cy + r1)
         p4 = Point(-r1, cy)
-        p5 = Point(-r1, y)
+
+        if not start_point_for_intersection:
+            p1 = Point(r1, y)
+        else:
+            x, y = line_intersection(pc, pc+intersection_vector, p2, p2 + Vector(0, -1000))
+            p1 = Point(x, y)
+
+        p5 = p1.mirror()
+
 
         # Distribute points proportionally to the lines/arcs lengths
         line_1 = Line(p1, p2)
@@ -354,25 +386,38 @@ class TunnelProfile:
         """
         loop = BoundaryLoop()
 
-        # 1. Generate Outer Primitives (CCW)
-        if self.outer:
-            outer_ents = self.outer.get_primitives(
-                offset=user_thickness,
-                assume_symmetric=assume_symmetric,
-            )
-        else:
-            outer_ents = self.inner.get_primitives(
-                offset=user_thickness,
-                assume_symmetric=assume_symmetric
-            )
-
-        for e in outer_ents: e.label = "outer"
-
-        # 2. Generate Inner Primitives (CCW)
+        # 1. Generate Inner Primitives (CCW)
         inner_ents_ccw = self.inner.get_primitives(
             assume_symmetric=assume_symmetric,
             num_points=num_points
         )
+
+        first_arc_center = None
+        intersection_vector = None
+
+        first_inner_ent = inner_ents_ccw[0]
+        if isinstance(first_inner_ent, Arc):
+            first_arc_center = first_inner_ent.center
+            intersection_vector = (first_inner_ent.start - first_inner_ent.center)
+            intersection_vector *= 5
+
+        # 2. Generate Outer Primitives (CCW)
+        if self.outer:
+            outer_ents = self.outer.get_primitives(
+                offset=user_thickness,
+                assume_symmetric=assume_symmetric,
+                start_point_for_intersection=first_arc_center,
+                intersection_vector=intersection_vector,
+            )
+        else:
+            outer_ents = self.inner.get_primitives(
+                offset=user_thickness,
+                assume_symmetric=assume_symmetric,
+                start_point_for_intersection=first_arc_center,
+                intersection_vector=intersection_vector,
+            )
+
+        for e in outer_ents: e.label = "outer"
 
         if not outer_ents or not inner_ents_ccw:
             return loop
@@ -407,7 +452,7 @@ class TunnelProfile:
                 # THAT'S MORE COMPLEX, NEED TO FIND CIRCLE CENTER
                 middle = line_circle_intersection(
                     point=end,
-                    vector=Vector(-1000, 0),
+                    vector=intersection_vector.mirror(),
                     circle=Circle(radius=first_ent.radius+rebar_depth, center=first_ent.center),
                     as_segment=True
                 )[0]
@@ -444,7 +489,7 @@ class TunnelProfile:
             # THAT'S MORE COMPLEX, NEED TO FIND CIRCLE CENTER
             middle = line_circle_intersection(
                 point=start,
-                vector=Vector(1000, 0),
+                vector=intersection_vector,
                 circle=Circle(radius=last_ent.radius+rebar_depth, center=last_ent.center),
                 as_segment=True
             )[0]
@@ -472,7 +517,27 @@ class TunnelProfile:
         Always results in an Open Arch (C-shape).
         """
 
-        return self.inner.get_primitives(offset=rebar_depth, assume_symmetric=assume_symmetric, num_points=num_points)
+        inner_ents_ccw = self.inner.get_primitives(
+            assume_symmetric=assume_symmetric,
+            num_points=num_points
+        )
+
+        first_arc_center = None
+        intersection_vector = None
+
+        first_inner_ent = inner_ents_ccw[0]
+        if isinstance(first_inner_ent, Arc):
+            first_arc_center = first_inner_ent.center
+            intersection_vector = (first_inner_ent.start - first_inner_ent.center)
+            intersection_vector *= 5
+
+        return self.inner.get_primitives(
+                offset=rebar_depth,
+                assume_symmetric=assume_symmetric,
+                num_points=num_points,
+                start_point_for_intersection=first_arc_center,
+                intersection_vector=intersection_vector,
+            )
 
     def get_rebar_points(self, rebar_depth: float, assume_symmetric: bool, num_points: int) -> Optional[List[Point]]:
         """
