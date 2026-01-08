@@ -27,10 +27,10 @@ class BCControlPanel(QWidget):
         layout = QVBoxLayout(self)
 
         # 1. Management
-        manage_group = QGroupBox("Definice Požárních Křivek")
+        manage_group = QGroupBox("Definice okrajových podmínek")
         manage_layout = QVBoxLayout(manage_group)
 
-        btn_manage = QPushButton("Spravovat Knihovnu Křivek...")
+        btn_manage = QPushButton("Spravovat okrajové podmínky...")
         btn_manage.setFixedHeight(40)
         btn_manage.clicked.connect(self.open_manager_modal)
         manage_layout.addWidget(btn_manage)
@@ -38,11 +38,11 @@ class BCControlPanel(QWidget):
         layout.addWidget(manage_group)
 
         # 2. Assignment Section
-        assign_group = QGroupBox("Požární Křivka Konstrukce")
+        assign_group = QGroupBox("Vybraná okrajová podmínka")
         assign_layout = QVBoxLayout(assign_group)
 
         # Curve Selection (Single curve for the entire domain)
-        assign_layout.addWidget(QLabel("Vyberte požární křivku:"))
+        assign_layout.addWidget(QLabel("Vyberte okrajovou podmínku:"))
 
         self.curve_combo = QComboBox()
         self.curve_combo.currentIndexChanged.connect(self.on_assignment_changed)
@@ -51,10 +51,10 @@ class BCControlPanel(QWidget):
         layout.addWidget(assign_group)
 
         # 3. Info Section
-        info_group = QGroupBox("Informace o Vybrané Křivce")
+        info_group = QGroupBox("Informace o vybrané okrajové podmínce")
         info_layout = QVBoxLayout(info_group)
 
-        self.lbl_info = QLabel("Žádná křivka není vybrána.")
+        self.lbl_info = QLabel("Žádná okrajová podmínka není vybrána.")
         self.lbl_info.setWordWrap(True)
         self.lbl_info.setTextFormat(Qt.RichText)
         info_layout.addWidget(self.lbl_info)

@@ -71,6 +71,10 @@ class Vector:
         """Returns the angle in radians between this vector and another."""
         return math.atan2(self.cross(other).magnitude, self.dot(other))
 
+    def mirror(self) -> Vector:
+        return Vector(-self.x, self.y, self.z)
+
+
 
 @dataclass
 class Point:
@@ -101,6 +105,10 @@ class Point:
 
     def to_array(self) -> npt.NDArray[np.float64]:
         return np.array([self.x, self.y, self.z])
+
+    def mirror(self) -> Point:
+        """Mirror a point in xy plane."""
+        return Point(-self.x, self.y, self.z)
 
 @dataclass
 class Line:

@@ -16,6 +16,7 @@ import tempfile
 import uuid
 
 import gmsh
+import meshio
 import os
 import logging
 from typing import Dict, Tuple, List, Optional, TYPE_CHECKING
@@ -187,14 +188,16 @@ class GmshMesher:
 
             # C. Thermocouple Points
             # C.1 Inner Boundary Points
+            inner_width = len(str(len(tags_inner_points)))
             for i, pt_tag in enumerate(tags_inner_points):
-                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - O{i+1}")
+                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - O{i+1:0{inner_width}d}")
 
             tags_rebar_points.insert(0, point_cache.get(rebar_pts[0]))
             tags_rebar_points.append(point_cache.get(rebar_pts[-1]))
             tags_rebar_points.reverse()
+            rebar_width = len(str(len(tags_rebar_points)))
             for i, pt_tag in enumerate(tags_rebar_points):
-                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1}")
+                gmsh.model.add_physical_group(0, [pt_tag], name=f"THERMOCOUPLE - V{i+1:0{rebar_width}d}")
 
             # rebar_depth = getattr(project.geometry.parameters, "rebar_depth", 0.05)
             # thermocouple_tags = self._generate_thermocouple_points(loop, rebar_depth, point_cache, base_lc)
@@ -341,4 +344,39 @@ class GmshMesher:
             assume_symmetric=assume_symmetric,
             num_points=num_points
         )
+
+    @staticmethod
+    def read_mesh_stats(mesh_path: str) -> Optional[MeshStats]:
+        """
+        Read mesh statistics (number of nodes and elements) from an existing mesh file.
+
+        Args:
+            mesh_path: Path to the mesh file (.msh format)
+
+        Returns:
+            MeshStats object containing filepath, num_nodes, and num_elements,
+            or None if the file cannot be read
+        """
+        if not mesh_path or not os.path.exists(mesh_path):
+            return None
+
+        try:
+            mesh = meshio.read(mesh_path)
+
+            # Count nodes
+            num_nodes = len(mesh.points)
+
+            # Count elements (sum across all cell types)
+            num_elements = sum(len(cells.data) for cells in mesh.cells)
+
+            logger.info(f"Read mesh stats from {mesh_path}: {num_nodes} nodes, {num_elements} elements")
+
+            return MeshStats(
+                filepath=mesh_path,
+                num_nodes=num_nodes,
+                num_elements=num_elements
+            )
+        except Exception as e:
+            logger.warning(f"Failed to read mesh statistics from {mesh_path}: {e}")
+            return None
 
