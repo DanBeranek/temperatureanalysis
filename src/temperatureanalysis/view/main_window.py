@@ -33,6 +33,7 @@ from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtWidgets import QWidget
 
 from temperatureanalysis import config
+from temperatureanalysis.config import ASSETS_PATH
 from temperatureanalysis.model.io import IOManager
 from temperatureanalysis.model.state import ProjectState
 from temperatureanalysis.view.tabs.tab_bc import BCControlPanel
@@ -44,7 +45,7 @@ from temperatureanalysis.view.tabs.tab_mesh import MeshControlPanel
 from temperatureanalysis.view.tabs.tab_results import ResultsControlPanel
 from temperatureanalysis.view.widgets.plot_3d import PyVistaWidget
 
-VISIBLE_APP_NAME = "Požár: Tunel"
+VISIBLE_APP_NAME = "CK04000274-V2 | Požár: Tunel"
 
 
 def get_app_version() -> str:
@@ -125,6 +126,13 @@ class ClickableLogoLabel(QLabel):
 class MainWindow(QMainWindow):
     def __init__(self, project_state: ProjectState) -> None:
         super().__init__()
+
+        icon_path = os.path.join(ASSETS_PATH, "icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QPixmap(icon_path))
+        else:
+            pass
+
         self.project: ProjectState = project_state
         self.is_modified: bool = True
 

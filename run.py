@@ -22,6 +22,14 @@ current_dir: str = os.path.dirname(os.path.abspath(__file__))
 src_path: str = os.path.join(current_dir, 'src')
 sys.path.insert(0, src_path)
 
+appid = 'CK04000274-V2.PozarTunel'  # Arbitrary string
+try:
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
+except (AttributeError, ImportError):
+    # Not on Windows or ctypes not available
+    pass
+
 from temperatureanalysis.main import main
 
 if __name__ == "__main__":
