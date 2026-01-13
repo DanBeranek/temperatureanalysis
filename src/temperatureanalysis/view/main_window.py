@@ -242,29 +242,78 @@ class MainWindow(QMainWindow):
         self.update_visualization()
 
     def _create_tacr_logo(self) -> QWidget:
-        """Create the TACR logolink widget with appropriate theme."""
+        """Create the TACR logo and acknowledgment text widget."""
+        from PySide6.QtWidgets import QHBoxLayout
+
         # Determine Theme (Dark/Light)
         text_color = self.palette().color(QPalette.WindowText)
         is_dark = text_color.lightness() > 128
 
-        # Choose appropriate logo
-        logo_filename = "logolink_dark.svg" if is_dark else "logolink_light.svg"
-        logo_path = os.path.join(config.ASSETS_PATH, "logolink", logo_filename)
+        # Container widget with horizontal layout
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
-        # Create clickable logo
-        logo_label = ClickableLogoLabel("https://tacr.gov.cz/", self)
+        # Choose appropriate logo
+        logo_filename = "tacr_dark.png" if is_dark else "tacr_light.png"
+        logo_path = os.path.join(config.ASSETS_PATH, "logo", logo_filename)
+
+        # Create clickable logo with fixed height
+        logo_label = QLabel()
+        logo_label.setCursor(Qt.PointingHandCursor)
+        logo_label.setToolTip("Technologická agentura ČR")
+
+        logo_height = 100  # Fixed height in pixels
 
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Use the new method that handles scaling dynamically to panel width
-            logo_label.set_source_pixmap(pixmap)
+            scaled_pixmap = pixmap.scaledToHeight(logo_height, Qt.SmoothTransformation)
+            logo_label.setPixmap(scaled_pixmap)
+            logo_label.setFixedSize(scaled_pixmap.size())
         else:
             logo_label.setText("TAČR")
 
-        logo_label.setContentsMargins(10, 10, 10, 10)
-        logo_label.setToolTip("Tento projekt je podporován Technologickou agenturou ČR")
+        # Make logo clickable
+        logo_label.mousePressEvent = lambda e: QDesktopServices.openUrl(
+            QUrl("https://tacr.gov.cz/")
+        )
 
-        return logo_label
+        layout.addWidget(logo_label, 0, Qt.AlignmentFlag.AlignCenter)
+
+        # Create acknowledgment text with hyperlinks
+        text_label = QLabel()
+        text_label.setWordWrap(True)
+        text_label.setOpenExternalLinks(True)
+        text_label.setTextFormat(Qt.RichText)
+
+        # Build HTML text with hyperlinks
+        # Style links to inherit text color with underline
+        if is_dark:
+            link_style = "color: white; text-decoration: underline;"
+        else:
+            link_style = "color: black; text-decoration: underline;"
+        html_text = (
+            '<span style="font-size: 9pt;">'
+            "Tento software "
+            # f'<a href="https://confire.fsv.cvut.cz/projekty/tunely-pri-pozaru/vysledky/'
+            # f'software-vypocet-teplot-v-nosne-konstrukci-tunelu.html" style="{link_style}">'
+            # "CK04000274-V2 Software pro výpočet teplot v nosné konstrukci tunelu při požáru</a> "
+            "vznikl v rámci řešení projektu "
+            f'<a href="https://confire.fsv.cvut.cz/projekty/tunely-pri-pozaru/" style="{link_style}">'
+            "CK04000274 Výzkum a vývoj inovativních metod a materiálů pro navrhování "
+            "tunelových staveb z hlediska požární bezpečnosti</a> "
+            "financovaného se státní podporou "
+            f'<a href="https://tacr.gov.cz/" style="{link_style}">Technologické agentury ČR</a> a '
+            f'<a href="https://www.mdcr.cz/" style="{link_style}">Ministerstva dopravy ČR</a> v rámci '
+            f'<a href="https://tacr.gov.cz/program/program-doprava-2020/" style="{link_style}">'
+            "Programu DOPRAVA 2020+</a>."
+            "</span>"
+        )
+        text_label.setText(html_text)
+        layout.addWidget(text_label, 1, Qt.AlignmentFlag.AlignTop)
+
+        return container
 
     def _create_actions(self) -> None:
         # File Actions
