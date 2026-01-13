@@ -63,24 +63,6 @@ def get_app_version() -> str:
         pass
     return "Unknown"
 
-
-def get_app_authors() -> str:
-    """Read application authors from pyproject.toml."""
-    try:
-        project_root = os.path.join(os.path.dirname(__file__), "..", "..", "..")
-        pyproject_path = os.path.join(project_root, "pyproject.toml")
-
-        if os.path.exists(pyproject_path):
-            with open(pyproject_path, "rb") as f:
-                data = tomllib.load(f)
-                authors = data.get("tool", {}).get("poetry", {}).get("authors", [])
-                if authors:
-                    return authors[0]  # Return first author
-    except Exception:
-        pass
-    return "Unknown"
-
-
 class ClickableLogoLabel(QLabel):
     """A clickable logo label that opens a URL when clicked and scales to width."""
 
@@ -346,9 +328,9 @@ class MainWindow(QMainWindow):
         self.act_export_vtu.setEnabled(False)  # Disabled until results exists
 
         # Help Actions
-        self.act_open_manual = QAction("Otevřít manuál", self)
-        self.act_open_manual.setShortcut("F1")
-        self.act_open_manual.triggered.connect(self.on_open_manual)
+        # self.act_open_manual = QAction("Otevřít manuál", self)
+        # self.act_open_manual.setShortcut("F1")
+        # self.act_open_manual.triggered.connect(self.on_open_manual)
 
         self.act_about = QAction("O aplikaci...", self)
         self.act_about.triggered.connect(self.on_about)
@@ -371,7 +353,7 @@ class MainWindow(QMainWindow):
         analysis_menu.addAction(self.act_export_vtu)
 
         help_menu = menu_bar.addMenu("&Nápověda")
-        help_menu.addAction(self.act_open_manual)
+        # help_menu.addAction(self.act_open_manual)
         help_menu.addAction(self.act_about)
 
     # --- HELPER METHODS ---
@@ -624,14 +606,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(desc_label)
 
         # Author
-        author = get_app_authors()
-        author_label = QLabel(f"<b>Autor:</b> {author}")
+        author_label = QLabel(f"<b>Autoři:</b> Beránek, D.; Štefan, R.; Holan, J.")
         author_label.setWordWrap(True)
         layout.addWidget(author_label)
 
         # Copyright
         current_year = datetime.now().year
-        copyright_label = QLabel(f"<b>Copyright:</b> © {current_year} Daniel Beránek")
+        copyright_label = QLabel(f"<b>Copyright:</b> © 2023–{current_year} Daniel Beránek")
         layout.addWidget(copyright_label)
 
         # License
@@ -657,9 +638,17 @@ class MainWindow(QMainWindow):
 
         # Funding acknowledgment
         funding_label = QLabel(
-            "<b>Financování:</b> Tento software Software pro výpočet teplot v nosné konstrukci tunelu "
-            "při požáru (CK04000274-V2) byl vytvořen se státní podporou "
-            "Technologické agentury ČR a Ministerstva dopravy v rámci Programu DOPRAVA 2020+."
+            "<b>Financování:</b> "
+            "Tento software "
+            "CK04000274-V2 Software pro výpočet teplot v nosné konstrukci tunelu při požáru"
+            "vznikl v rámci řešení projektu "
+            "CK04000274 Výzkum a vývoj inovativních metod a materiálů pro navrhování "
+            "tunelových staveb z hlediska požární bezpečnosti"
+            "financovaného se státní podporou "
+            "Technologické agentury ČR a "
+            "Ministerstva dopravy ČR v rámci "
+            "Programu DOPRAVA 2020+."
+
         )
         funding_label.setWordWrap(True)
         layout.addWidget(funding_label)
