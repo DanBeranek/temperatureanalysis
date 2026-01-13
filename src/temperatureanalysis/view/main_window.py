@@ -530,6 +530,7 @@ class MainWindow(QMainWindow):
             self.mat_panel.blockSignals(False)
 
         # 3. Update Results (will trigger visualization if results exists)
+        self.results_panel.reset_status()  # Clear first
         self.results_panel.load_from_state()
 
         if self.project.results:
@@ -609,11 +610,6 @@ class MainWindow(QMainWindow):
         author_label = QLabel(f"<b>Autoři:</b> Beránek, D.; Štefan, R.; Holan, J.")
         author_label.setWordWrap(True)
         layout.addWidget(author_label)
-
-        # Copyright
-        current_year = datetime.now().year
-        copyright_label = QLabel(f"<b>Copyright:</b> © 2023–{current_year} Daniel Beránek")
-        layout.addWidget(copyright_label)
 
         # License
         license_label = QLabel(
