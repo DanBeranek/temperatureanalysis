@@ -466,6 +466,9 @@ class MainWindow(QMainWindow):
         """After loading a file, the State is updated, but the Widgets are old.
         We need to force the Widgets to read from the State again.
         """
+        # 0. Clear all visualization caches to prevent artifacts from previous project
+        self.visualizer.clear_all_caches()
+
         # 1. Update Geometry Panel
         self.geom_panel.blockSignals(True)
         try:

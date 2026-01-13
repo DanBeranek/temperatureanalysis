@@ -242,6 +242,29 @@ class PyVistaWidget(QWidget):
         if render:
             self.plotter.render()
 
+    def clear_all_caches(self) -> None:
+        """
+        Clears all cached data and actors.
+        Call this when loading a new project to prevent artifacts from
+        the previous visualization remaining in the scene.
+        """
+        # Clear geometry layer and its cache
+        for actor in self._geo_actors:
+            self.plotter.remove_actor(actor)
+        self._geo_actors.clear()
+        self._cached_geo_signature = None
+
+        # Clear mesh layer and its cache
+        self._clear_mesh_layer()
+        self._cached_mesh = None
+        self._cached_mesh_path = None
+
+        # Clear results layer
+        self._clear_results_layer()
+
+        # Clear thermocouple layer and its cache
+        self._clear_thermocouple_layer()
+
     # ------------------------------------------------------------------------------
     # Internal: Layer Management
     # ------------------------------------------------------------------------------
@@ -467,13 +490,14 @@ class PyVistaWidget(QWidget):
 
             # Update Actor (caching logic)
             if self._result_iso_actor is None:
-                self._result_iso_actor = self.plotter.add_mesh(
-                    contours,
-                    color="black",
-                    line_width=1.5,
-                    show_scalar_bar=False,
-                    render_lines_as_tubes=True,  # nicer visibility
-                )
+                if contours.n_points > 0:
+                    self._result_iso_actor = self.plotter.add_mesh(
+                        contours,
+                        color="black",
+                        line_width=1.5,
+                        show_scalar_bar=False,
+                        render_lines_as_tubes=True,  # nicer visibility
+                    )
             else:
                 # CRITICAL: Update existing data in-place to prevent blinking
                 # copy_from() updates points and cells of the existing actor's mapper dataset

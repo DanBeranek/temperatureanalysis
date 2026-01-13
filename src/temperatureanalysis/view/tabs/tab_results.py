@@ -218,6 +218,9 @@ class ResultsControlPanel(QWidget):
         # Reset slider/status if results exist
         if self.project.results:
             self.on_finished()  # Re-enable controls
+            # Explicitly trigger view update - slider.setValue() may not emit
+            # signal if the value didn't change from previous project
+            self.on_slider_changed(self.slider.value())
         else:
             self.slider.setEnabled(False)
             self.btn_play.setEnabled(False)

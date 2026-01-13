@@ -34,7 +34,7 @@ def get_resource_path(relative_path: str) -> str:
         # Development mode: resolve relative to THIS file
         # config.py is in src/temperatureanalysis/
         # Assets are likely in src/temperatureanalysis/assets
-    current_dir: Path = Path(__file__).parent
+    current_dir: Path = Path(__file__).parent.parent.parent
     return os.path.join(str(current_dir), relative_path)
 
 
